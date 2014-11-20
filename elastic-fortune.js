@@ -1,14 +1,17 @@
 var ObjectId = require('mongoose').Types.ObjectId;
 var request = require('request');
+var bluebird = require('bluebird');
+var requestAsync = bluebird.promisify(require('request'));
+
 var _s = require('underscore.string');
 var _ = require('lodash');
 var RSVP = require('rsvp');
 var Util =  require("./Util");
 
-//Bonsai wants us to only send 1 ES query at a time.
+//Bonsai wants us to only send 1 ES query at a time, for POSTs/PUTs. Later on we can add more pools for other requests if needed.
 var http = require('http');
-var eSSyncPool = new http.Agent();
-eSSyncPool.maxSockets = 1;
+var postPool = new http.Agent();
+postPool.maxSockets = 1;
 
 function ElasticFortune (fortune_app,es_url,index,type,collectionNameLookup) {
     var _this= this;
@@ -497,9 +500,22 @@ function ElasticFortune (fortune_app,es_url,index,type,collectionNameLookup) {
     }
     return this;
 }
+/** Delete Related **/
+//delete: Just deletes the #id item of the initialized type.
+ElasticFortune.prototype.delete = function(id){
+    var _this = this;
+    var es_resource = this.es_url + '/'+this.index+'/'+this.type+'/'+id;
+    return requestAsync({uri:es_resource, method: 'DELETE', body: ""}).then(function(response){
+        var body = JSON.parse(response[1]);
+        if(!body.found){
+            throw new Error("Could not find " + _this.type +" "+id+ " to delete him from elastic search.");
+        }
+        return body;
+    });
+}
+
 
 /** POST RELATED **/
-
 //Note - only 1 "after" callback is allowed per endpoint, so if you enable autosync, you're giving it up to elastic-fortune.
 ElasticFortune.prototype.enableAutoSync= function(endpoint){
     var _this = this;
@@ -523,7 +539,7 @@ ElasticFortune.prototype.expandAndSync = function(model) {
 //sync: will push model to elastic search WITHOUT expanding any links.
 ElasticFortune.prototype.sync = function(model){
     var esBody = JSON.stringify(model);
-    var options = {uri: this.es_url + '/'+this.index+'/'+this.type+'/' + model.id, body: esBody,pool:eSSyncPool};
+    var options = {uri: this.es_url + '/'+this.index+'/'+this.type+'/' + model.id, body: esBody,pool:postPool};
 
     return new RSVP.Promise(function (resolve, reject) {
         request.put(options, function (error, response, body) {
