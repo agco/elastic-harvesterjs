@@ -1,7 +1,7 @@
 {
   "name": "elastic-fortune",
   "description": "Connects Elastic Search, fortune.js & mongodb in a jiff!",
-  "version": "0.0.2",
+  "version": "0.0.3",
   "keywords": [
       "elasticsearch",
       "elastic-search",
@@ -12,10 +12,6 @@
       "fortune.js"
   ],
   "dependencies": {
-    "body-parser": "~1.4.3",
-    "express": "~4.6.1",
-    "express-domain-middleware": "~0.1.0",
-    "express-reverse": "~0.2.1",
     "lodash": "~2.4.1",
     "mongoose": "~3.8.12",
     "request": "2.40.0",
