@@ -1,8 +1,16 @@
 {
   "name": "elastic-fortune",
   "description": "Connects Elastic Search, fortune.js & mongodb in a jiff!",
-  "version": "0.0.1",
-  "private": true,
+  "version": "0.0.2",
+  "keywords": [
+      "elasticsearch",
+      "elastic-search",
+      "mongodb",
+      "mongo",
+      "fortune",
+      "fortunejs",
+      "fortune.js"
+  ],
   "dependencies": {
     "body-parser": "~1.4.3",
     "express": "~4.6.1",
@@ -17,5 +25,25 @@
   "devDependencies": {},
   "engines": {
     "node": ">=0.10"
-  }
+  },
+  "homepage": "https://github.com/ssebro/elastic-fortune",
+  "repository": {
+      "type": "git",
+      "url": "git://github.com/ssebro/elastic-fortune.git"
+  },
+  "bugs": {
+    "url": "https://github.com/ssebro/elastic-fortune/issues"
+  },
+  "license": "MIT",
+  "author": {
+    "name": "Stephen Sebro",
+    "email": "stephensebro@yahoo.com",
+    "url": "http://github.com/ssebro/"
+  },
+  "main": "./elastic-fortune.js",
+  "files":[
+    "elastic-fortune.js",
+    "LICENSE",
+    "Util.js"
+  ]
 }
