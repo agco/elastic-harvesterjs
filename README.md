@@ -12,37 +12,22 @@ We currently also require that you use mongodb as your datastore.
 Usage
 ----
 
-#Hash of properties to related mongo collections
 ```js
+//Hash of properties to related mongo collections
 var collectionNameLookup = {
-
     "brand": "brand",
-
     "product_type": "product_type",
-
     "contract_type": "contract_type",
-
     "region": "region",
-
     "country": "country",
-
     "address_country": "country",
-
     "address_state_province": "state_province",
-
     "current_contracts": "contract",
-
     "phone_numbers": "phone_number",
-
     "business_hours": "business_hours",
-
     "current_offerings": "offering",
-
     "dealer_misc": "dealers_misc"
 }
-```
-
-```js
 var Elastic_Search_URL = process.env.BONSAI_URL || "http://127.0.0.1:9200";
 var Elastic_Search_Index = "dealer-api";
 var type = "dealers";
@@ -51,24 +36,21 @@ var type = "dealers";
 ```js
 var dealerSearch = new ElasticFortune(fortune_app, Elastic_Search_URL,Elastic_Search_Index, type, collectionNameLookup);
 fortune_app.router.get('/dealers/search', dealerSearch.route);
-```
-
-#Required to make the elastic search endpoint work properly
-```js
+//Required to make the elastic search endpoint work properly
 fortune_app.setOnRouteCreated("dealer",function(route){
     dealerSearch.setFortuneRoute(route);
 },this);
 ```
 
 
-#Create dealer :after endpoint & sync elastic search.
-#Note - only 1 "after" callback is allowed per endpoint, so if you enable autosync, you're giving it up to elastic-fortune.
+##Create an :after callback & sync elastic search after each item is posted to fortune
+#####Note - only 1 "after" callback is allowed per endpoint, so if you enable autosync, you're giving it up to elastic-fortune.
 ```js
 dealerSearch.enableAutoSync("dealer");
 ```
 
 
-#Alternative way to create dealer :after endpoint & sync elastic search. This approach gives you access to do more in the after callback.
+##Alternative way to create an :after endpoint & sync elastic search. This approach gives you access to do more in the after callback.
 ```js
 this.fortune_app.after("dealer", function (req, res, next) {
     if (req.method === 'POST' || (req.method === 'PUT' && this.id)) {
@@ -80,13 +62,25 @@ this.fortune_app.after("dealer", function (req, res, next) {
 ```    
 
 
-#If you just want to expand an object's links:
+##Expand an object's links:
 ```js
 dealerSearch.expandEntity(dealer);
 ```
 
 
-#If you just want to send an object to elastic search without expanding it's links:
+##Send an object to elastic search after expanding it's links:
 ```js
-dealerSearch.sync(this);
+dealerSearch.expandAndSync(dealer);
+```
+
+
+##Send an object to elastic search without expanding it's links:
+```js
+dealerSearch.sync(dealer);
+```
+
+
+##Delete an object in elastic search: (added in 0.0.3)
+```js
+dealerSearch.delete(dealer.id);
 ```
