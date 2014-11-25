@@ -13,6 +13,8 @@ var http = require('http');
 var postPool = new http.Agent();
 postPool.maxSockets = 1;
 
+var DEFAULT_AGGREGATION_LIMIT = 0;//0=>Integer.MAX_VALUE
+
 function ElasticFortune (fortune_app,es_url,index,type,collectionNameLookup) {
     var _this= this;
 
@@ -32,7 +34,8 @@ function ElasticFortune (fortune_app,es_url,index,type,collectionNameLookup) {
         var sortParams = req.query["sort"];
         sortParams && (sortParams = sortParams.split(','));
 
-        var reservedQueryTerms = ["aggregations.fields","include","limit","offset","sort","fields"];
+        var reservedQueryTerms = ["aggregations","aggregations.fields","include","limit","offset","sort","fields"];
+        reservedQueryTerms = reservedQueryTerms.concat(getAggregationFields(req.query));
 
         _.each(req.query, function (value,key) {
 
@@ -42,7 +45,7 @@ function ElasticFortune (fortune_app,es_url,index,type,collectionNameLookup) {
             } else if (_s.startsWith(key, "links.")) {
                 nestedPredicates.push([key, req.query[key]]);
             }
-            else if (!_.contains(reservedQueryTerms,key)){
+            else if (!_.contains(reservedQueryTerms,key)){//Todo: speedup by using a lookup object instead.
                 predicates.push({key:key,value:req.query[key]});
             }
         });
@@ -51,11 +54,129 @@ function ElasticFortune (fortune_app,es_url,index,type,collectionNameLookup) {
             return nestedPredicate.length === 2;
         });
 
-        var aggregationsFields = req.query['aggregations.fields']? req.query['aggregations.fields'].split(","):[];
+        // Support deprecated "aggregations.fields" aggregation param by converting those params to new query format
+        if(req.query["aggregations.fields"]){
+            var oldFields = req.query["aggregations.fields"].split(',');
+            _.each(oldFields,function(oldfield,i) {
+                if (req.query["aggregations"]) {
+                    req.query["aggregations"] = req.query["aggregations"] + "," + "aggregations_fields" + i;
+                } else {
+                    req.query["aggregations"] = "aggregations_fields" + i;
+                }
+                req.query["aggregations_fields"+i+".field"]=oldfield;
 
-        var esQuery = createEsQuery(predicates, nestedPredicates, geoPredicate, aggregationsFields,sortParams);
+            });
+        }
+        var aggregationObjects = getAggregationObjects(req.query);
+
+
+
+        var esQuery = createEsQuery(predicates, nestedPredicates, geoPredicate,aggregationObjects, sortParams);
         esSearch(esQuery,req,res,next);
     };
+
+    /*
+        Terms aggregations:
+        field, order (essentially a sort), "min_doc_count": 10, include, exclude, script
+
+        Idea: what if we just allow ANY terms to be specified on an aggregation & patch it together? Special one is size.
+            //No - it'll require that we go through every query param when trying to create our exclusion list... v inefficient.
+        0) Protect predicates from agg syntax.
+        1) Create way to parse off agg parts.  | test? run whole query below
+        2) Preserve current agg syntax using new code.
+        --
+        3) Figure out now to do nested queries
+        4) Create example query & query map
+        5) Combine agg parts into query & query map.
+        6) Support nested sub-aggregate responses from ES.
+
+     aggregations=eq_agg
+     &eq_agg.type=terms
+     &eq_agg.field=links.equipment.id
+     &eq_agg.aggregations=eq_agg_position_latest,eq_agg_variables
+
+     &eq_agg_position_latest.type=top_hits
+     &eq_agg_position_latest.sort=-time
+     &eq_agg_position_latest.limit=1
+     &eq_agg_position_latest.include=id,time,loc,alt,head
+
+     &eq_agg_variables.type=terms
+     &eq_agg_variables.field=tracking_data.spn
+     &eq_agg_variables.aggregations=eq_agg_variables_latest
+
+     &eq_agg_variables_latest.type=top_hits
+     &eq_agg_variables_latest.sort=-time
+     &eq_agg_variables_latest.limit=1
+     &eq_agg_variables_latest.include=tracking_data
+
+     TESTS:
+     Predicates not affected by aggregation defined terms.
+     http://localhost:8081/dealers/search?aggregations=a&a.field=links.address_state_province.code&a.aggregations=b&b.aggregations=c
+
+
+    NOTES:
+     aggregation_fields & aggregation_fields0, aggregation_fields1, aggregation_fields2 etc parameters should not be used - it's used to support backwards
+     compatibility with aggregation.fields parameter.
+     */
+
+    var permittedAggOptions = {
+        top_hits:["type","sort","limit","include","aggregations"],
+        terms:["type","order","field","aggregations"]
+    }
+
+    function setValueIfExists(obj,property,val){
+        (val) && (obj[property] = val);
+        return obj;
+    }
+    //returns an array of all protected aggregationFields
+    function getAggregationFields(query,aggParam) {
+        var retVal = [];
+        !aggParam && (aggParam = "aggregations");
+        if(!query[aggParam]){
+            return retVal;
+        }
+
+        _.each(query[aggParam].split(','),function(agg){
+            var type = query[agg +".type"];
+            !type && (type ="terms");
+            var aggOptions = permittedAggOptions[type];
+            _.each(aggOptions,function(aggOption){
+                var expectedOptionName = agg+"."+aggOption;
+                retVal.push(expectedOptionName);
+            });
+
+            if( query[agg+".aggregations"]){
+                var nestedAggFields=  getAggregationFields(query,agg+".aggregations");
+                retVal=retVal.concat(nestedAggFields);
+            }
+        });
+        return retVal;
+    }
+
+    function getAggregationObjects(query,aggParam){
+        !aggParam && (aggParam = "aggregations");
+        if(!query[aggParam]){
+            return [];
+        }
+        return _.map(query[aggParam].split(','),function(agg){
+
+            var aggregation = {};
+
+            setValueIfExists(aggregation,"name",agg);
+            setValueIfExists(aggregation,"field",query[agg+".field"]);
+            setValueIfExists(aggregation,"type",query[agg+".type"] || "terms");
+            setValueIfExists(aggregation,"order",query[agg+".order"]);
+            setValueIfExists(aggregation,"sort",query[agg+".sort"]);
+            setValueIfExists(aggregation,"limit",query[agg+".limit"]);
+            setValueIfExists(aggregation,"include",query[agg+".include"]);
+
+            if( query[agg+".aggregations"]){
+                aggregation.aggregations = getAggregationObjects(query,agg+".aggregations");
+            }
+
+            return aggregation;
+        })
+    }
 
     function transformSourceObjectToSimplyLinkedObject(sourceObject,fields){
         _.each(sourceObject.links || [],function(val,key){
@@ -184,7 +305,8 @@ function ElasticFortune (fortune_app,es_url,index,type,collectionNameLookup) {
         });
     }
 
-    function createEsQuery(predicates, nestedPredicates, geoPredicate, aggregationsFields,sortParams) {
+
+    function createEsQuery(predicates, nestedPredicates, geoPredicate,aggregationObjects,sortParams) {
 
         var createEsQueryFragment = function (fields, queryVal) {
 
@@ -414,31 +536,38 @@ function ElasticFortune (fortune_app,es_url,index,type,collectionNameLookup) {
 
         allPredicateFragments.length>0 && (composedESQuery.query.filtered.filter=filter);
 
-        if (aggregationsFields.length) {
-            composedESQuery.aggs = {};
-            _.each(aggregationsFields,function(aggregationsField){
-                var isNestedAggregation = (aggregationsField.lastIndexOf(".")>0);
-                var path = aggregationsField.substr(0, aggregationsField.lastIndexOf("."));
+        function getAggregationQuery(aggregationObjects){
+            var aggs = {};
 
-                var unnestedAggs = {
-                    terms: {
-                        field: aggregationsField,
-                        size:0
+            if (aggregationObjects.length) {
+                _.each(aggregationObjects,function(aggregationObject){
+
+                    var isNestedAggregation = (aggregationObject.field.lastIndexOf(".")>0);
+                    var path = aggregationObject.field.substr(0, aggregationObject.field.lastIndexOf("."));
+
+                    var unnestedAggs = {
+                        terms: {
+                            field: aggregationObject.field,
+                            size:DEFAULT_AGGREGATION_LIMIT
+                        }
+                    };
+                    if(isNestedAggregation){
+                        aggs[aggregationObject.field]={
+                            nested: {
+                                path: path
+                            },
+                            aggs:{}
+                        }
+                        aggs[aggregationObject.field].aggs[aggregationObject.field]=unnestedAggs;
+                    }else{
+                        aggs[aggregationObject.field] = unnestedAggs;
                     }
-                };
-                if(isNestedAggregation){
-                    composedESQuery.aggs[aggregationsField]={
-                        nested: {
-                            path: path
-                        },
-                        aggs:{}
-                    }
-                    composedESQuery.aggs[aggregationsField].aggs[aggregationsField]=unnestedAggs;
-                }else{
-                    composedESQuery.aggs[aggregationsField] = unnestedAggs;
-                }
-            })
+                })
+            }
+            return aggs;
         }
+
+        composedESQuery.aggs = getAggregationQuery(aggregationObjects);
 
         if(geoPredicateExists){
             geoPredicate.unit = geoPredicate.distance.replace(/\d+/g, '');
