@@ -84,11 +84,15 @@ function ElasticFortune (fortune_app,es_url,index,type,collectionNameLookup) {
         0) Protect predicates from agg syntax.
         1) Create way to parse off agg parts.  | test? run whole query below
         2) Preserve current agg syntax using new code.
+
         --
-        3) Figure out now to do nested queries
-        4) Create example query & query map
-        5) Combine agg parts into query & query map.
+        3) Get simple subaggregates to work
+        4) Get nested buckets from subaggreagate ES answers into response
+        
+        5) Get complex nested subqggregates to work (ones with links.*.*)
+        -
         6) Support nested sub-aggregate responses from ES.
+        7) Move syntax back so user can define what name they want queries to be run under.
 
      aggregations=eq_agg
      &eq_agg.type=terms
@@ -227,7 +231,19 @@ function ElasticFortune (fortune_app,es_url,index,type,collectionNameLookup) {
                 if (es_results && es_results.aggregations) {
                     var createBuckets = function (terms) {
                         return _.map(terms, function (term) {
-                            return {key: term.key, count: term.doc_count}
+                            //1. see if there are other terms & if they have buckets.
+                            var retVal = {key: term.key, count: term.doc_count};
+                            delete term.key;
+                            delete term.doc_count;
+                            _.each(term,function(aggResponse,responseKey){
+                                if(responseKey=="key" || responseKey=="doc_count"){
+                                    return;
+                                }else if(aggResponse.buckets){
+                                    retVal[responseKey] = createBuckets(aggResponse.buckets);
+                                }
+                            });
+                            return retVal;
+                            //Todo: ended day here -> start by recursively turning out term's extra params (e.g. name)'s buckets
                         });
                     };
 
@@ -538,37 +554,46 @@ function ElasticFortune (fortune_app,es_url,index,type,collectionNameLookup) {
 
         function getAggregationQuery(aggregationObjects){
             var aggs = {};
+            _.each(aggregationObjects || [],function(aggregationObject){
 
-            if (aggregationObjects.length) {
-                _.each(aggregationObjects,function(aggregationObject){
+                var isDeepAggregation = (aggregationObject.field.lastIndexOf(".")>0);
+                var path = aggregationObject.field.substr(0, aggregationObject.field.lastIndexOf("."));
 
-                    var isNestedAggregation = (aggregationObject.field.lastIndexOf(".")>0);
-                    var path = aggregationObject.field.substr(0, aggregationObject.field.lastIndexOf("."));
-
-                    var unnestedAggs = {
-                        terms: {
-                            field: aggregationObject.field,
-                            size:DEFAULT_AGGREGATION_LIMIT
-                        }
-                    };
-                    if(isNestedAggregation){
-                        aggs[aggregationObject.field]={
-                            nested: {
-                                path: path
-                            },
-                            aggs:{}
-                        }
-                        aggs[aggregationObject.field].aggs[aggregationObject.field]=unnestedAggs;
-                    }else{
-                        aggs[aggregationObject.field] = unnestedAggs;
+                var shallowTermsAggs = {
+                    terms: {
+                        field: aggregationObject.field,
+                        size:DEFAULT_AGGREGATION_LIMIT
                     }
-                })
-            }
+                };
+                if(isDeepAggregation){
+                    aggs[aggregationObject.field]={
+                        nested: {
+                            path: path
+                        },
+                        aggs:{}
+                    }
+                    aggs[aggregationObject.field].aggs[aggregationObject.field]=shallowTermsAggs;
+                }else{
+                    aggs[aggregationObject.field] = shallowTermsAggs;
+                }
+                if(aggregationObject.aggregations){
+                    var furtherAggs = getAggregationQuery(aggregationObject.aggregations);
+                    if(!aggs[aggregationObject.field].aggs){
+                        aggs[aggregationObject.field].aggs = furtherAggs;
+                    }else{
+                        _.each(furtherAggs,function(furtherAgg,key){
+                            aggs[aggregationObject.field].aggs[key]=furtherAgg;
+                        });
+                    }
+
+
+                }
+            })
             return aggs;
         }
 
         composedESQuery.aggs = getAggregationQuery(aggregationObjects);
-
+        console.warn(JSON.stringify(composedESQuery.aggs));
         if(geoPredicateExists){
             geoPredicate.unit = geoPredicate.distance.replace(/\d+/g, '');
             var distanceFunction=esDistanceFunctionLookup[geoPredicate.unit];
