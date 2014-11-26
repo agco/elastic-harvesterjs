@@ -88,11 +88,12 @@ function ElasticFortune (fortune_app,es_url,index,type,collectionNameLookup) {
         --
         3) Get simple subaggregates to work
         4) Get nested buckets from subaggreagate ES answers into response
-
-        5) Get complex nested subqggregates to work (ones with links.*.*)
-        -
-        6) Support nested sub-aggregate responses from ES.
         7) Move syntax back so user can define what name they want queries to be run under.
+        5) Get complex nested subqggregates to work (ones with links.*.*)
+        6) Support complex nested sub-aggregate responses from ES.
+        7) Get multiple aggs & subaggs at different nesting levels to work properly.
+        -
+        8) Add support for top_hits aggregate & subaggregate.
 
      aggregations=eq_agg
      &eq_agg.type=terms
@@ -117,11 +118,28 @@ function ElasticFortune (fortune_app,es_url,index,type,collectionNameLookup) {
      Predicates not affected by aggregation defined terms.
      http://localhost:8081/dealers/search?aggregations=a&a.field=links.address_state_province.code&a.aggregations=b&b.aggregations=c
 
+     Multiple simple aggregates
+     http://localhost:8081/dealers/search?aggregations=asp,ctt&asp.field=code&ctt.field=zip
+
+     Multiple complex aggregates
+     http://localhost:8081/dealers/search?aggregations=asp,ctt&asp.field=links.address_state_province.code&ctt.field=links.address_state_province.description
+
+     Multiple simple aggregates & subaggregates
+     http://localhost:8081/dealers/search?aggregations=asp,ctt&asp.field=code&ctt.field=zip&asp.aggregations=tty,parent&tty.field=id&parent.field=parent_code&tty.aggregations=ppg&ppg.field=city
+
+
+     Multiple complex aggregates & subaggregates
+     http://localhost:8081/dealers/search?aggregations=asp,ctt&asp.field=links.address_state_province.code&ctt.field=links.address_state_province.description&ctt.aggregations=ffs&ffs.field=links.address_country.description&ffs.aggregations=bba,bbb&bba.field=links.address_country.code&bbb.field=links.address_state_province.code
+
+
+     //Todo: stop crash if no field is provided, or crash more elegantly.
+        Test: http://localhost:8081/dealers/search?aggregations=asp,zeep&asp.field=links.address_state_province.code&asp.aggregations=bbt&bbt.field=city
 
     NOTES:
      aggregation_fields & aggregation_fields0, aggregation_fields1, aggregation_fields2 etc parameters should not be used - it's used to support backwards
      compatibility with aggregation.fields parameter.
      */
+
 
     var permittedAggOptions = {
         top_hits:["type","sort","limit","include","aggregations"],
@@ -233,13 +251,23 @@ function ElasticFortune (fortune_app,es_url,index,type,collectionNameLookup) {
                         return _.map(terms, function (term) {
                             //1. see if there are other terms & if they have buckets.
                             var retVal = {key: term.key, count: term.doc_count};
-                            delete term.key;
-                            delete term.doc_count;
+
                             _.each(term,function(aggResponse,responseKey){
                                 if(responseKey=="key" || responseKey=="doc_count"){
                                     return;
                                 }else if(aggResponse.buckets){
                                     retVal[responseKey] = createBuckets(aggResponse.buckets);
+                                    //to combine nested aggs w others, you have to un-nest them, & this takes up an aggregation-space.
+                                }else if(responseKey=="reverse_nesting"){
+                                    _.each(aggResponse,function(reverseNestedResponseProperty,reverseNestedResponseKey){
+                                        if(reverseNestedResponseProperty!="doc_count" && (reverseNestedResponseProperty.buckets)){
+                                            retVal[reverseNestedResponseKey] = createBuckets(reverseNestedResponseProperty.buckets);
+                                            //this gets a little complicated because reverse-nested then renested subdocuments are .. complicated (because the extra aggs for nesting throws things off).
+                                        }else if (reverseNestedResponseProperty!="doc_count" && reverseNestedResponseProperty[reverseNestedResponseKey] && reverseNestedResponseProperty[reverseNestedResponseKey].buckets){
+                                            retVal[reverseNestedResponseKey] = createBuckets(reverseNestedResponseProperty[reverseNestedResponseKey].buckets);
+
+                                        }
+                                    });
                                 }
                             });
                             return retVal;
@@ -555,7 +583,7 @@ function ElasticFortune (fortune_app,es_url,index,type,collectionNameLookup) {
         function getAggregationQuery(aggregationObjects){
             var aggs = {};
             _.each(aggregationObjects || [],function(aggregationObject){
-
+                //Todo: stop crash if no field is provided, or crash more elegantly.
                 var isDeepAggregation = (aggregationObject.field.lastIndexOf(".")>0);
                 var path = aggregationObject.field.substr(0, aggregationObject.field.lastIndexOf("."));
 
@@ -578,13 +606,21 @@ function ElasticFortune (fortune_app,es_url,index,type,collectionNameLookup) {
                 }
                 if(aggregationObject.aggregations){
                     var furtherAggs = getAggregationQuery(aggregationObject.aggregations);
-                    if(!aggs[aggregationObject.name].aggs){
-                        aggs[aggregationObject.name].aggs = furtherAggs;
+                    var relevantAggQueryObj = aggs[aggregationObject.name];
+                    if(isDeepAggregation){
+                        //TODO:this should not be an equals; you may overrite an agg here!
+                        aggs[aggregationObject.name].aggs[aggregationObject.name]["aggs"]={"reverse_nesting":{"reverse_nested":{}}};
+                        relevantAggQueryObj = aggs[aggregationObject.name].aggs[aggregationObject.name].aggs["reverse_nesting"]
+                    }
+
+                    if(!relevantAggQueryObj.aggs){
+                        relevantAggQueryObj.aggs = furtherAggs;
                     }else{
                         _.each(furtherAggs,function(furtherAgg,key){
-                            aggs[aggregationObject.name].aggs[key]=furtherAgg;
+                            relevantAggQueryObj.aggs[key]=furtherAgg;
                         });
                     }
+
 
 
                 }
