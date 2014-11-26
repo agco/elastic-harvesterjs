@@ -59,11 +59,11 @@ function ElasticFortune (fortune_app,es_url,index,type,collectionNameLookup) {
             var oldFields = req.query["aggregations.fields"].split(',');
             _.each(oldFields,function(oldfield,i) {
                 if (req.query["aggregations"]) {
-                    req.query["aggregations"] = req.query["aggregations"] + "," + "aggregations_fields" + i;
+                    req.query["aggregations"] = req.query["aggregations"] + "," + oldfield;
                 } else {
-                    req.query["aggregations"] = "aggregations_fields" + i;
+                    req.query["aggregations"] = oldfield;
                 }
-                req.query["aggregations_fields"+i+".field"]=oldfield;
+                req.query[oldfield+".field"]=oldfield;
 
             });
         }
@@ -88,7 +88,7 @@ function ElasticFortune (fortune_app,es_url,index,type,collectionNameLookup) {
         --
         3) Get simple subaggregates to work
         4) Get nested buckets from subaggreagate ES answers into response
-        
+
         5) Get complex nested subqggregates to work (ones with links.*.*)
         -
         6) Support nested sub-aggregate responses from ES.
@@ -566,23 +566,23 @@ function ElasticFortune (fortune_app,es_url,index,type,collectionNameLookup) {
                     }
                 };
                 if(isDeepAggregation){
-                    aggs[aggregationObject.field]={
+                    aggs[aggregationObject.name]={
                         nested: {
                             path: path
                         },
                         aggs:{}
                     }
-                    aggs[aggregationObject.field].aggs[aggregationObject.field]=shallowTermsAggs;
+                    aggs[aggregationObject.name].aggs[aggregationObject.name]=shallowTermsAggs;
                 }else{
-                    aggs[aggregationObject.field] = shallowTermsAggs;
+                    aggs[aggregationObject.name] = shallowTermsAggs;
                 }
                 if(aggregationObject.aggregations){
                     var furtherAggs = getAggregationQuery(aggregationObject.aggregations);
-                    if(!aggs[aggregationObject.field].aggs){
-                        aggs[aggregationObject.field].aggs = furtherAggs;
+                    if(!aggs[aggregationObject.name].aggs){
+                        aggs[aggregationObject.name].aggs = furtherAggs;
                     }else{
                         _.each(furtherAggs,function(furtherAgg,key){
-                            aggs[aggregationObject.field].aggs[key]=furtherAgg;
+                            aggs[aggregationObject.name].aggs[key]=furtherAgg;
                         });
                     }
 
