@@ -14,6 +14,7 @@ var postPool = new http.Agent();
 postPool.maxSockets = 1;
 
 var DEFAULT_AGGREGATION_LIMIT = 0;//0=>Integer.MAX_VALUE
+var DEFAULT_TOP_HITS_AGGREGATION_LIMIT = 10; //Cannot be zero. NOTE: Default number of responses in top_hit aggregation is 10.
 
 function ElasticFortune (fortune_app,es_url,index,type,collectionNameLookup) {
     var _this= this;
@@ -84,16 +85,24 @@ function ElasticFortune (fortune_app,es_url,index,type,collectionNameLookup) {
         0) Protect predicates from agg syntax.
         1) Create way to parse off agg parts.  | test? run whole query below
         2) Preserve current agg syntax using new code.
-
-        --
         3) Get simple subaggregates to work
         4) Get nested buckets from subaggreagate ES answers into response
         7) Move syntax back so user can define what name they want queries to be run under.
         5) Get complex nested subqggregates to work (ones with links.*.*)
         6) Support complex nested sub-aggregate responses from ES.
         7) Get multiple aggs & subaggs at different nesting levels to work properly.
-        -
-        8) Add support for top_hits aggregate & subaggregate.
+        8) Add support for top_hits aggregate
+        9) Get top_hits respose into returned response from dealer-api.
+        10) Get top_hits subaggregate working // Failed; Elastic search does not support this. If you think about it, tophits doesn't actually do a transform, so it doesn't matter.
+        9) Test support for required fields for kristof's command below.
+        ==
+        +++ Add support for changing collections.
+        1) Figure out exactly how you want to auto-update when other collections change.
+        2) Create Internal Search apparatus that allows us to figure out which dealers need to be updated when other collections change.
+        3) Get each entire documents we need & strip them back to be the simple documents that went in.
+        4) Expand links for the simple documents & put them back in ES, at the same ids.
+        5) Test by posting an update to country name & searching for all dealers with that country name.
+
 
      aggregations=eq_agg
      &eq_agg.type=terms
@@ -132,17 +141,26 @@ function ElasticFortune (fortune_app,es_url,index,type,collectionNameLookup) {
      http://localhost:8081/dealers/search?aggregations=asp,ctt&asp.field=links.address_state_province.code&ctt.field=links.address_state_province.description&ctt.aggregations=ffs&ffs.field=links.address_country.description&ffs.aggregations=bba,bbb&bba.field=links.address_country.code&bbb.field=links.address_state_province.code
 
 
+     Top hits aggregation:
+     http://localhost:8081/dealers/search?aggregations=asp&asp.field=links.address_state_province.code&asp.aggregations=bbt&bbt.type=top_hits&bbt.include=name,id
+
+     Top hits aggregation / limit:
+     http://localhost:8081/dealers/search?aggregations=asp&asp.field=links.address_state_province.code&asp.aggregations=bbt&bbt.limit=2&bbt.type=top_hits&bbt.include=name,id
+
+
      //Todo: stop crash if no field is provided, or crash more elegantly.
         Test: http://localhost:8081/dealers/search?aggregations=asp,zeep&asp.field=links.address_state_province.code&asp.aggregations=bbt&bbt.field=city
 
     NOTES:
-     aggregation_fields & aggregation_fields0, aggregation_fields1, aggregation_fields2 etc parameters should not be used - it's used to support backwards
-     compatibility with aggregation.fields parameter.
+     + Aggs provided by old-style syntax will be transformed to new style syntax on the query string & will replace other (new style) aggs sent in with identical names.
+     + DEFAULT_TOP_HITS_AGGREGATION_LIMIT = 10; //Cannot be zero/MAXINT. NOTE: Default number of responses in top_hit aggregation is 10.
+     + DEFAULT_AGGREGATION_LIMIT = 0; (MaxInt)
+     + Top_hits aggregation cannot be nested - you're going to need to slightly change your initial query syntax. Otherwise, it looks good.
      */
 
 
     var permittedAggOptions = {
-        top_hits:["type","sort","limit","include","aggregations"],
+        top_hits:["type","sort","limit","include"],
         terms:["type","order","field","aggregations"]
     }
 
@@ -192,7 +210,7 @@ function ElasticFortune (fortune_app,es_url,index,type,collectionNameLookup) {
             setValueIfExists(aggregation,"limit",query[agg+".limit"]);
             setValueIfExists(aggregation,"include",query[agg+".include"]);
 
-            if( query[agg+".aggregations"]){
+            if( query[agg+".aggregations"]){//TODO: also, if type allows nesting (aka, type is a bucket aggregation)
                 aggregation.aggregations = getAggregationObjects(query,agg+".aggregations");
             }
 
@@ -231,6 +249,11 @@ function ElasticFortune (fortune_app,es_url,index,type,collectionNameLookup) {
         this.fortuneRoute = fortuneRoute;
     }
 
+    function getSourceObj(esResponseObject){
+        var obj = esResponseObject["_source"];
+     return obj;
+    }
+
     function sendSearchResponse(es_results, res, includes,fields) {
         var initialPromise = RSVP.resolve();
         var padding = undefined;
@@ -255,8 +278,14 @@ function ElasticFortune (fortune_app,es_url,index,type,collectionNameLookup) {
                             _.each(term,function(aggResponse,responseKey){
                                 if(responseKey=="key" || responseKey=="doc_count"){
                                     return;
-                                }else if(aggResponse.buckets){
+                                }else if(aggResponse.buckets) {
                                     retVal[responseKey] = createBuckets(aggResponse.buckets);
+
+                                }else if (aggResponse.hits && aggResponse.hits.hits){
+                                    //top_hits aggs result from nested query w/o reverse nesting.
+                                    retVal[responseKey] = _.map(aggResponse.hits.hits,function(esReponseObj){
+                                        return esReponseObj["_source"];
+                                    });
                                     //to combine nested aggs w others, you have to un-nest them, & this takes up an aggregation-space.
                                 }else if(responseKey=="reverse_nesting"){
                                     _.each(aggResponse,function(reverseNestedResponseProperty,reverseNestedResponseKey){
@@ -266,7 +295,13 @@ function ElasticFortune (fortune_app,es_url,index,type,collectionNameLookup) {
                                         }else if (reverseNestedResponseProperty!="doc_count" && reverseNestedResponseProperty[reverseNestedResponseKey] && reverseNestedResponseProperty[reverseNestedResponseKey].buckets){
                                             retVal[reverseNestedResponseKey] = createBuckets(reverseNestedResponseProperty[reverseNestedResponseKey].buckets);
 
+                                            //this gets a little MORE complicated because of reverse-nested then renested top_hits aggs
+                                        }else if (reverseNestedResponseProperty!="doc_count" && reverseNestedResponseProperty.hits && reverseNestedResponseProperty.hits.hits){
+                                            retVal[reverseNestedResponseKey] = _.map(reverseNestedResponseProperty.hits.hits,function(esReponseObj){
+                                              return esReponseObj["_source"];
+                                            });
                                         }
+
                                     });
                                 }
                             });
@@ -281,12 +316,16 @@ function ElasticFortune (fortune_app,es_url,index,type,collectionNameLookup) {
                             }
                         };
                         _.forIn(es_results.aggregations, function (value, key) {
-                            if(value["buckets"])
+                            if (value["buckets"])
                                 meta.aggregations[key] = createBuckets(value.buckets);
-                            else if (value[key] && value[key]["buckets"]){
+                            else if (value[key] && value[key]["buckets"]) {
                                 meta.aggregations[key] = createBuckets(value[key]["buckets"]);
+                            } else if (value.hits && value.hits.hits) {
+                                //top_hits aggs result from totally un-nested query
+                                meta.aggregations[key] = _.map(value.hits.hits, function (esReponseObj) {
+                                    return esReponseObj["_source"];
+                                });
                             }
-
                         });
                         return meta;
                     };
@@ -347,6 +386,18 @@ function ElasticFortune (fortune_app,es_url,index,type,collectionNameLookup) {
                 return sendSearchResponse(es_results, res,includes,fields);
             }
         });
+    }
+
+    var requiredAggOptions = {
+        top_hits:["type","include"],
+        terms:["type","field"]
+    }
+
+    function assertAggregationObjectHasRequiredOptions(aggregationObject){
+        var type = aggregationObject.type||"terms";
+        _.each(requiredAggOptions[type],function(requiredOption){
+            Util.assertAsDefined(aggregationObject[requiredOption],type+" aggregations require that a '"+requiredOption+"' paramenter is specified.");
+        })
     }
 
 
@@ -583,32 +634,60 @@ function ElasticFortune (fortune_app,es_url,index,type,collectionNameLookup) {
         function getAggregationQuery(aggregationObjects){
             var aggs = {};
             _.each(aggregationObjects || [],function(aggregationObject){
-                //Todo: stop crash if no field is provided, or crash more elegantly.
-                var isDeepAggregation = (aggregationObject.field.lastIndexOf(".")>0);
-                var path = aggregationObject.field.substr(0, aggregationObject.field.lastIndexOf("."));
-
-                var shallowTermsAggs = {
-                    terms: {
-                        field: aggregationObject.field,
-                        size:DEFAULT_AGGREGATION_LIMIT
+                assertAggregationObjectHasRequiredOptions(aggregationObject);
+                var isDeepAggregation = false;
+                if(aggregationObject.type=="terms"){
+                    //Todo: stop crash if no field is provided, or crash more elegantly.
+                    isDeepAggregation = (aggregationObject.field.lastIndexOf(".")>0);
+                    var path = aggregationObject.field.substr(0, aggregationObject.field.lastIndexOf("."));
+                    var shallowTermsAggs = {
+                        terms: {
+                            field: aggregationObject.field,
+                            size:aggregationObject.limit || DEFAULT_AGGREGATION_LIMIT
+                        }
+                    };
+                    //deep work should be repeated.
+                    if(isDeepAggregation){
+                        aggs[aggregationObject.name]={
+                            nested: {
+                                path: path
+                            },
+                            aggs:{}
+                        }
+                        aggs[aggregationObject.name].aggs[aggregationObject.name]=shallowTermsAggs;
+                    }else{
+                        aggs[aggregationObject.name] = shallowTermsAggs;
                     }
-                };
-                if(isDeepAggregation){
-                    aggs[aggregationObject.name]={
-                        nested: {
-                            path: path
-                        },
-                        aggs:{}
+                }else if (aggregationObject.type="top_hits"){
+                    var shallowTermsAggs = {
+                        top_hits: {
+                            size:aggregationObject.limit?Number(aggregationObject.limit) : DEFAULT_TOP_HITS_AGGREGATION_LIMIT
+                        }
+                    };
+                    //Adds in sorting
+                    if(aggregationObject.sort){
+                        _.each(aggregationObject.sort.split(','),function(sortParam) {
+                            var sortDirection = (sortParam[0]!="-"?"asc":"desc");
+                            sortDirection=="desc" && (sortParam = sortParam.substr(1));
+                            shallowTermsAggs.top_hits.sort= shallowTermsAggs.top_hits.sort || [];
+                            var sortTerm = {};
+                            sortTerm[sortParam]={"order":sortDirection};
+                            shallowTermsAggs.top_hits.sort.push(sortTerm);
+                        });
                     }
-                    aggs[aggregationObject.name].aggs[aggregationObject.name]=shallowTermsAggs;
-                }else{
+                    if(aggregationObject.include){
+                        shallowTermsAggs.top_hits["_source"]={};
+                        shallowTermsAggs.top_hits["_source"]["include"] = aggregationObject.include.split(',');
+                    }
                     aggs[aggregationObject.name] = shallowTermsAggs;
+
                 }
+
                 if(aggregationObject.aggregations){
                     var furtherAggs = getAggregationQuery(aggregationObject.aggregations);
                     var relevantAggQueryObj = aggs[aggregationObject.name];
                     if(isDeepAggregation){
-                        //TODO:this should not be an equals; you may overrite an agg here!
+                        //TODO:this should not be an equals; you may overwrite an agg here!
                         aggs[aggregationObject.name].aggs[aggregationObject.name]["aggs"]={"reverse_nesting":{"reverse_nested":{}}};
                         relevantAggQueryObj = aggs[aggregationObject.name].aggs[aggregationObject.name].aggs["reverse_nesting"]
                     }
@@ -620,9 +699,6 @@ function ElasticFortune (fortune_app,es_url,index,type,collectionNameLookup) {
                             relevantAggQueryObj.aggs[key]=furtherAgg;
                         });
                     }
-
-
-
                 }
             })
             return aggs;
