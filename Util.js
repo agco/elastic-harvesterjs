@@ -70,7 +70,22 @@ function includeFields(obj,fields){
     return newObj;
 }
 
+//Throws error if objValue is undefined
+function assertAsDefined(obj,errorMsg){
+    if(_.isUndefined(obj) || _.isNull(obj)){
+        throw new Error(errorMsg);
+    }
+}
+function toObjectLookup(array){
+    var retVal = {};
+    _.each(array,function(element){
+        retVal[element]=true;
+    });
+    return retVal;
+}
 
+module.exports.toObjectLookup = toObjectLookup;
+module.exports.assertAsDefined = assertAsDefined;
 module.exports.getProperty = getProperty;
 module.exports.setProperty = setProperty;
 module.exports.match = match;
