@@ -37,6 +37,7 @@ function ElasticFortune (fortune_app,es_url,index,type,collectionNameLookup) {
 
         var reservedQueryTerms = ["aggregations","aggregations.fields","include","limit","offset","sort","fields"];
         reservedQueryTerms = reservedQueryTerms.concat(getAggregationFields(req.query));
+        var reservedQueryTermLookup = Util.toObjectLookup(reservedQueryTerms);
 
         _.each(req.query, function (value,key) {
 
@@ -46,7 +47,7 @@ function ElasticFortune (fortune_app,es_url,index,type,collectionNameLookup) {
             } else if (_s.startsWith(key, "links.")) {
                 nestedPredicates.push([key, req.query[key]]);
             }
-            else if (!_.contains(reservedQueryTerms,key)){//Todo: speedup by using a lookup object instead.
+            else if (!reservedQueryTermLookup[key]){
                 predicates.push({key:key,value:req.query[key]});
             }
         });
@@ -156,6 +157,8 @@ function ElasticFortune (fortune_app,es_url,index,type,collectionNameLookup) {
      + DEFAULT_TOP_HITS_AGGREGATION_LIMIT = 10; //Cannot be zero/MAXINT. NOTE: Default number of responses in top_hit aggregation is 10.
      + DEFAULT_AGGREGATION_LIMIT = 0; (MaxInt)
      + Top_hits aggregation cannot be nested - you're going to need to slightly change your initial query syntax. Otherwise, it looks good.
+     + Agg results are placed  in the parent object, therefore aggregations with conflicting names may cause issues (egg subaggregate called "key") -> bug: doing so returns entire key es_response!.
+
      */
 
 
@@ -164,19 +167,41 @@ function ElasticFortune (fortune_app,es_url,index,type,collectionNameLookup) {
         terms:["type","order","field","aggregations"]
     }
 
-    function setValueIfExists(obj,property,val){
-        (val) && (obj[property] = val);
+    function setValueIfExists(obj,property,val,fn){
+        (val) && (fn?fn(val,property):true) && (obj[property] = val);
         return obj;
     }
+
+    function assertIsNotArray(val,property){
+        if(_.isArray(val)){
+            throw new Error ("You can't supply multiple values for '"+ property+"'.");
+            return false;
+        }
+        return true;
+    };
+
+    var bannedAggNames = {"key":true,"doc_count":true,"count":true};
+
+    function assertAggNameIsAllowed(aggName,supplimentalBanList){
+        if(bannedAggNames[aggName]){
+            throw new Error("You're not allowed to use '"+ aggName+"' as an aggregation name.");
+        }
+        if(supplimentalBanList[aggName]){
+            throw new Error("You can't use '"+ aggName+"' as an aggregation name multiple times!");
+        }
+    }
     //returns an array of all protected aggregationFields
-    function getAggregationFields(query,aggParam) {
+    function getAggregationFields(query,aggParam,supplimentalBanList) {
         var retVal = [];
         !aggParam && (aggParam = "aggregations");
         if(!query[aggParam]){
             return retVal;
         }
+        supplimentalBanList=supplimentalBanList || {};
 
         _.each(query[aggParam].split(','),function(agg){
+            assertAggNameIsAllowed(agg,supplimentalBanList);
+            supplimentalBanList[agg]=true;
             var type = query[agg +".type"];
             !type && (type ="terms");
             var aggOptions = permittedAggOptions[type];
@@ -186,7 +211,7 @@ function ElasticFortune (fortune_app,es_url,index,type,collectionNameLookup) {
             });
 
             if( query[agg+".aggregations"]){
-                var nestedAggFields=  getAggregationFields(query,agg+".aggregations");
+                var nestedAggFields=  getAggregationFields(query,agg+".aggregations",supplimentalBanList);
                 retVal=retVal.concat(nestedAggFields);
             }
         });
@@ -202,13 +227,13 @@ function ElasticFortune (fortune_app,es_url,index,type,collectionNameLookup) {
 
             var aggregation = {};
 
-            setValueIfExists(aggregation,"name",agg);
-            setValueIfExists(aggregation,"field",query[agg+".field"]);
-            setValueIfExists(aggregation,"type",query[agg+".type"] || "terms");
-            setValueIfExists(aggregation,"order",query[agg+".order"]);
-            setValueIfExists(aggregation,"sort",query[agg+".sort"]);
-            setValueIfExists(aggregation,"limit",query[agg+".limit"]);
-            setValueIfExists(aggregation,"include",query[agg+".include"]);
+            setValueIfExists(aggregation,"name",agg,assertIsNotArray);
+            setValueIfExists(aggregation,"field",query[agg+".field"],assertIsNotArray);
+            setValueIfExists(aggregation,"type",query[agg+".type"] || "terms",assertIsNotArray);
+            setValueIfExists(aggregation,"order",query[agg+".order"],assertIsNotArray);
+            setValueIfExists(aggregation,"sort",query[agg+".sort"],assertIsNotArray);
+            setValueIfExists(aggregation,"limit",query[agg+".limit"],assertIsNotArray);
+            setValueIfExists(aggregation,"include",query[agg+".include"],assertIsNotArray);
 
             if( query[agg+".aggregations"]){//TODO: also, if type allows nesting (aka, type is a bucket aggregation)
                 aggregation.aggregations = getAggregationObjects(query,agg+".aggregations");

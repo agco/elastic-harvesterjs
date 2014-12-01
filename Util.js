@@ -76,7 +76,15 @@ function assertAsDefined(obj,errorMsg){
         throw new Error(errorMsg);
     }
 }
+function toObjectLookup(array){
+    var retVal = {};
+    _.each(array,function(element){
+        retVal[element]=true;
+    });
+    return retVal;
+}
 
+module.exports.toObjectLookup = toObjectLookup;
 module.exports.assertAsDefined = assertAsDefined;
 module.exports.getProperty = getProperty;
 module.exports.setProperty = setProperty;
