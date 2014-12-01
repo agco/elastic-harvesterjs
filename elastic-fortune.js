@@ -13,6 +13,9 @@ var http = require('http');
 var postPool = new http.Agent();
 postPool.maxSockets = 1;
 
+var DEFAULT_AGGREGATION_LIMIT = 0;//0=>Integer.MAX_VALUE
+var DEFAULT_TOP_HITS_AGGREGATION_LIMIT = 10; //Cannot be zero. NOTE: Default number of responses in top_hit aggregation is 10.
+
 function ElasticFortune (fortune_app,es_url,index,type,collectionNameLookup) {
     var _this= this;
 
@@ -32,7 +35,9 @@ function ElasticFortune (fortune_app,es_url,index,type,collectionNameLookup) {
         var sortParams = req.query["sort"];
         sortParams && (sortParams = sortParams.split(','));
 
-        var reservedQueryTerms = ["aggregations.fields","include","limit","offset","sort","fields"];
+        var reservedQueryTerms = ["aggregations","aggregations.fields","include","limit","offset","sort","fields"];
+        reservedQueryTerms = reservedQueryTerms.concat(getAggregationFields(req.query));
+        var reservedQueryTermLookup = Util.toObjectLookup(reservedQueryTerms);
 
         _.each(req.query, function (value,key) {
 
@@ -42,7 +47,7 @@ function ElasticFortune (fortune_app,es_url,index,type,collectionNameLookup) {
             } else if (_s.startsWith(key, "links.")) {
                 nestedPredicates.push([key, req.query[key]]);
             }
-            else if (!_.contains(reservedQueryTerms,key)){
+            else if (!reservedQueryTermLookup[key]){
                 predicates.push({key:key,value:req.query[key]});
             }
         });
@@ -51,11 +56,107 @@ function ElasticFortune (fortune_app,es_url,index,type,collectionNameLookup) {
             return nestedPredicate.length === 2;
         });
 
-        var aggregationsFields = req.query['aggregations.fields']? req.query['aggregations.fields'].split(","):[];
+        // Support deprecated "aggregations.fields" aggregation param by converting those params to new query format
+        if(req.query["aggregations.fields"]){
+            var oldFields = req.query["aggregations.fields"].split(',');
+            _.each(oldFields,function(oldfield,i) {
+                if (req.query["aggregations"]) {
+                    req.query["aggregations"] = req.query["aggregations"] + "," + oldfield;
+                } else {
+                    req.query["aggregations"] = oldfield;
+                }
+                req.query[oldfield+".field"]=oldfield;
 
-        var esQuery = createEsQuery(predicates, nestedPredicates, geoPredicate, aggregationsFields,sortParams);
+            });
+        }
+        var aggregationObjects = getAggregationObjects(req.query);
+
+
+
+        var esQuery = createEsQuery(predicates, nestedPredicates, geoPredicate,aggregationObjects, sortParams);
         esSearch(esQuery,req,res,next);
     };
+
+    var permittedAggOptions = {
+        top_hits:["type","sort","limit","include"],
+        terms:["type","order","field","aggregations"]
+    }
+
+    function setValueIfExists(obj,property,val,fn){
+        (val) && (fn?fn(val,property):true) && (obj[property] = val);
+        return obj;
+    }
+
+    function assertIsNotArray(val,property){
+        if(_.isArray(val)){
+            throw new Error ("You can't supply multiple values for '"+ property+"'.");
+            return false;
+        }
+        return true;
+    };
+
+    var bannedAggNames = {"key":true,"doc_count":true,"count":true};
+
+    function assertAggNameIsAllowed(aggName,supplimentalBanList){
+        if(bannedAggNames[aggName]){
+            throw new Error("You're not allowed to use '"+ aggName+"' as an aggregation name.");
+        }
+        if(supplimentalBanList[aggName]){
+            throw new Error("You can't use '"+ aggName+"' as an aggregation name multiple times!");
+        }
+    }
+    //returns an array of all protected aggregationFields
+    function getAggregationFields(query,aggParam,supplimentalBanList) {
+        var retVal = [];
+        !aggParam && (aggParam = "aggregations");
+        if(!query[aggParam]){
+            return retVal;
+        }
+        supplimentalBanList=supplimentalBanList || {};
+
+        _.each(query[aggParam].split(','),function(agg){
+            assertAggNameIsAllowed(agg,supplimentalBanList);
+            supplimentalBanList[agg]=true;
+            var type = query[agg +".type"];
+            !type && (type ="terms");
+            var aggOptions = permittedAggOptions[type];
+            _.each(aggOptions,function(aggOption){
+                var expectedOptionName = agg+"."+aggOption;
+                retVal.push(expectedOptionName);
+            });
+
+            if( query[agg+".aggregations"]){
+                var nestedAggFields=  getAggregationFields(query,agg+".aggregations",supplimentalBanList);
+                retVal=retVal.concat(nestedAggFields);
+            }
+        });
+        return retVal;
+    }
+
+    function getAggregationObjects(query,aggParam){
+        !aggParam && (aggParam = "aggregations");
+        if(!query[aggParam]){
+            return [];
+        }
+        return _.map(query[aggParam].split(','),function(agg){
+
+            var aggregation = {};
+
+            setValueIfExists(aggregation,"name",agg,assertIsNotArray);
+            setValueIfExists(aggregation,"field",query[agg+".field"],assertIsNotArray);
+            setValueIfExists(aggregation,"type",query[agg+".type"] || "terms",assertIsNotArray);
+            setValueIfExists(aggregation,"order",query[agg+".order"],assertIsNotArray);
+            setValueIfExists(aggregation,"sort",query[agg+".sort"],assertIsNotArray);
+            setValueIfExists(aggregation,"limit",query[agg+".limit"],assertIsNotArray);
+            setValueIfExists(aggregation,"include",query[agg+".include"],assertIsNotArray);
+
+            if( query[agg+".aggregations"]){//TODO: also, if type allows nesting (aka, type is a bucket aggregation)
+                aggregation.aggregations = getAggregationObjects(query,agg+".aggregations");
+            }
+
+            return aggregation;
+        })
+    }
 
     function transformSourceObjectToSimplyLinkedObject(sourceObject,fields){
         _.each(sourceObject.links || [],function(val,key){
@@ -88,6 +189,11 @@ function ElasticFortune (fortune_app,es_url,index,type,collectionNameLookup) {
         this.fortuneRoute = fortuneRoute;
     }
 
+    function getSourceObj(esResponseObject){
+        var obj = esResponseObject["_source"];
+     return obj;
+    }
+
     function sendSearchResponse(es_results, res, includes,fields) {
         var initialPromise = RSVP.resolve();
         var padding = undefined;
@@ -106,7 +212,41 @@ function ElasticFortune (fortune_app,es_url,index,type,collectionNameLookup) {
                 if (es_results && es_results.aggregations) {
                     var createBuckets = function (terms) {
                         return _.map(terms, function (term) {
-                            return {key: term.key, count: term.doc_count}
+                            //1. see if there are other terms & if they have buckets.
+                            var retVal = {key: term.key, count: term.doc_count};
+
+                            _.each(term,function(aggResponse,responseKey){
+                                if(responseKey=="key" || responseKey=="doc_count"){
+                                    return;
+                                }else if(aggResponse.buckets) {
+                                    retVal[responseKey] = createBuckets(aggResponse.buckets);
+
+                                }else if (aggResponse.hits && aggResponse.hits.hits){
+                                    //top_hits aggs result from nested query w/o reverse nesting.
+                                    retVal[responseKey] = _.map(aggResponse.hits.hits,function(esReponseObj){
+                                        return esReponseObj["_source"];
+                                    });
+                                    //to combine nested aggs w others, you have to un-nest them, & this takes up an aggregation-space.
+                                }else if(responseKey=="reverse_nesting"){
+                                    _.each(aggResponse,function(reverseNestedResponseProperty,reverseNestedResponseKey){
+                                        if(reverseNestedResponseProperty!="doc_count" && (reverseNestedResponseProperty.buckets)){
+                                            retVal[reverseNestedResponseKey] = createBuckets(reverseNestedResponseProperty.buckets);
+                                            //this gets a little complicated because reverse-nested then renested subdocuments are .. complicated (because the extra aggs for nesting throws things off).
+                                        }else if (reverseNestedResponseProperty!="doc_count" && reverseNestedResponseProperty[reverseNestedResponseKey] && reverseNestedResponseProperty[reverseNestedResponseKey].buckets){
+                                            retVal[reverseNestedResponseKey] = createBuckets(reverseNestedResponseProperty[reverseNestedResponseKey].buckets);
+
+                                            //this gets a little MORE complicated because of reverse-nested then renested top_hits aggs
+                                        }else if (reverseNestedResponseProperty!="doc_count" && reverseNestedResponseProperty.hits && reverseNestedResponseProperty.hits.hits){
+                                            retVal[reverseNestedResponseKey] = _.map(reverseNestedResponseProperty.hits.hits,function(esReponseObj){
+                                              return esReponseObj["_source"];
+                                            });
+                                        }
+
+                                    });
+                                }
+                            });
+                            return retVal;
+                            //Todo: ended day here -> start by recursively turning out term's extra params (e.g. name)'s buckets
                         });
                     };
 
@@ -116,12 +256,16 @@ function ElasticFortune (fortune_app,es_url,index,type,collectionNameLookup) {
                             }
                         };
                         _.forIn(es_results.aggregations, function (value, key) {
-                            if(value["buckets"])
+                            if (value["buckets"])
                                 meta.aggregations[key] = createBuckets(value.buckets);
-                            else if (value[key] && value[key]["buckets"]){
+                            else if (value[key] && value[key]["buckets"]) {
                                 meta.aggregations[key] = createBuckets(value[key]["buckets"]);
+                            } else if (value.hits && value.hits.hits) {
+                                //top_hits aggs result from totally un-nested query
+                                meta.aggregations[key] = _.map(value.hits.hits, function (esReponseObj) {
+                                    return esReponseObj["_source"];
+                                });
                             }
-
                         });
                         return meta;
                     };
@@ -184,7 +328,20 @@ function ElasticFortune (fortune_app,es_url,index,type,collectionNameLookup) {
         });
     }
 
-    function createEsQuery(predicates, nestedPredicates, geoPredicate, aggregationsFields,sortParams) {
+    var requiredAggOptions = {
+        top_hits:["type","include"],
+        terms:["type","field"]
+    }
+
+    function assertAggregationObjectHasRequiredOptions(aggregationObject){
+        var type = aggregationObject.type||"terms";
+        _.each(requiredAggOptions[type],function(requiredOption){
+            Util.assertAsDefined(aggregationObject[requiredOption],type+" aggregations require that a '"+requiredOption+"' paramenter is specified.");
+        })
+    }
+
+
+    function createEsQuery(predicates, nestedPredicates, geoPredicate,aggregationObjects,sortParams) {
 
         var createEsQueryFragment = function (fields, queryVal) {
 
@@ -414,32 +571,81 @@ function ElasticFortune (fortune_app,es_url,index,type,collectionNameLookup) {
 
         allPredicateFragments.length>0 && (composedESQuery.query.filtered.filter=filter);
 
-        if (aggregationsFields.length) {
-            composedESQuery.aggs = {};
-            _.each(aggregationsFields,function(aggregationsField){
-                var isNestedAggregation = (aggregationsField.lastIndexOf(".")>0);
-                var path = aggregationsField.substr(0, aggregationsField.lastIndexOf("."));
+        function getAggregationQuery(aggregationObjects){
+            var aggs = {};
+            _.each(aggregationObjects || [],function(aggregationObject){
+                assertAggregationObjectHasRequiredOptions(aggregationObject);
+                var isDeepAggregation = false;
+                if(aggregationObject.type=="terms"){
+                    //Todo: stop crash if no field is provided, or crash more elegantly.
+                    isDeepAggregation = (aggregationObject.field.lastIndexOf(".")>0);
+                    var path = aggregationObject.field.substr(0, aggregationObject.field.lastIndexOf("."));
+                    var shallowTermsAggs = {
+                        terms: {
+                            field: aggregationObject.field,
+                            size:aggregationObject.limit || DEFAULT_AGGREGATION_LIMIT
+                        }
+                    };
+                    //deep work should be repeated.
+                    if(isDeepAggregation){
+                        aggs[aggregationObject.name]={
+                            nested: {
+                                path: path
+                            },
+                            aggs:{}
+                        }
+                        aggs[aggregationObject.name].aggs[aggregationObject.name]=shallowTermsAggs;
+                    }else{
+                        aggs[aggregationObject.name] = shallowTermsAggs;
+                    }
+                }else if (aggregationObject.type="top_hits"){
+                    var shallowTermsAggs = {
+                        top_hits: {
+                            size:aggregationObject.limit?Number(aggregationObject.limit) : DEFAULT_TOP_HITS_AGGREGATION_LIMIT
+                        }
+                    };
+                    //Adds in sorting
+                    if(aggregationObject.sort){
+                        _.each(aggregationObject.sort.split(','),function(sortParam) {
+                            var sortDirection = (sortParam[0]!="-"?"asc":"desc");
+                            sortDirection=="desc" && (sortParam = sortParam.substr(1));
+                            shallowTermsAggs.top_hits.sort= shallowTermsAggs.top_hits.sort || [];
+                            var sortTerm = {};
+                            sortTerm[sortParam]={"order":sortDirection};
+                            shallowTermsAggs.top_hits.sort.push(sortTerm);
+                        });
+                    }
+                    if(aggregationObject.include){
+                        shallowTermsAggs.top_hits["_source"]={};
+                        shallowTermsAggs.top_hits["_source"]["include"] = aggregationObject.include.split(',');
+                    }
+                    aggs[aggregationObject.name] = shallowTermsAggs;
 
-                var unnestedAggs = {
-                    terms: {
-                        field: aggregationsField,
-                        size:0
+                }
+
+                if(aggregationObject.aggregations){
+                    var furtherAggs = getAggregationQuery(aggregationObject.aggregations);
+                    var relevantAggQueryObj = aggs[aggregationObject.name];
+                    if(isDeepAggregation){
+                        //TODO:this should not be an equals; you may overwrite an agg here!
+                        aggs[aggregationObject.name].aggs[aggregationObject.name]["aggs"]={"reverse_nesting":{"reverse_nested":{}}};
+                        relevantAggQueryObj = aggs[aggregationObject.name].aggs[aggregationObject.name].aggs["reverse_nesting"]
                     }
-                };
-                if(isNestedAggregation){
-                    composedESQuery.aggs[aggregationsField]={
-                        nested: {
-                            path: path
-                        },
-                        aggs:{}
+
+                    if(!relevantAggQueryObj.aggs){
+                        relevantAggQueryObj.aggs = furtherAggs;
+                    }else{
+                        _.each(furtherAggs,function(furtherAgg,key){
+                            relevantAggQueryObj.aggs[key]=furtherAgg;
+                        });
                     }
-                    composedESQuery.aggs[aggregationsField].aggs[aggregationsField]=unnestedAggs;
-                }else{
-                    composedESQuery.aggs[aggregationsField] = unnestedAggs;
                 }
             })
+            return aggs;
         }
 
+        composedESQuery.aggs = getAggregationQuery(aggregationObjects);
+        console.warn(JSON.stringify(composedESQuery.aggs));
         if(geoPredicateExists){
             geoPredicate.unit = geoPredicate.distance.replace(/\d+/g, '');
             var distanceFunction=esDistanceFunctionLookup[geoPredicate.unit];
