@@ -84,3 +84,18 @@ dealerSearch.sync(dealer);
 ```js
 dealerSearch.delete(dealer.id);
 ```
+
+
+##Create an :after callback & keep your elastic search index up to date with PUTs and POSTs on linked documents. (added in 0.0.5)
+#####Note - only 1 "after" callback is allowed per endpoint, so if you enable indexUpdateOnModelUpdate, you're giving it up to elastic-fortune.
+```js
+dealerSearch.enableAutoIndexUpdateOnModelUpdate("subdocumentsFortuneEndpoint","links.path.to.object.id");
+e.g. dealerSearch.enableAutoIndexUpdateOnModelUpdate("brand","links.current_contracts.brand.id");
+```
+
+
+##Update Elastic Search index when a specific field changes (added in 0.0.5)
+```js
+entity = this;
+dealerSearch.updateIndexForLinkedDocument("links.path.to.object.id",entity);
+```
