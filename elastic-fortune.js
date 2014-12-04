@@ -733,15 +733,15 @@ ElasticFortune.prototype.enableAutoIndexUpdateOnModelUpdate = function (endpoint
             return this;
         }
     });
-
-    this.fortune_app.before(endpoint, function (req, res, next) {
-        var entity = this;
-        if ((req.method === 'DELETE') && entity.id) {
-            return _this.updateIndexForLinkedDocument(idField,entity,req.method);
-        } else {
-            return this;
-        }
-    });
+//                 //Todo: finish support for deletes.
+//    this.fortune_app.before(endpoint, function (req, res, next) {
+//        var entity = this;
+//        if ((req.method === 'DELETE') && entity.id) {
+//            return _this.updateIndexForLinkedDocument(idField,entity,req.method);
+//        } else {
+//            return this;
+//        }
+//    });
 
 };
 
@@ -753,26 +753,28 @@ ElasticFortune.prototype.updateIndexForLinkedDocument = function (idField,entity
     return _this.simpleSearch(idField,entity.id)
         .then(function(result){
             return _this.expandAndSync(_.map(result.hits.hits,function(hit){
-                if(method && method=="DELETE"){
-                    var objPath = idField.substr(0, idField.lastIndexOf(".id"));
-                    var objName = objPath.substr(objPath.lastIndexOf(".")+1,objPath.length);
-                    var closestParentObjPath = idField.substr(0, idField.lastIndexOf("."+objName));
-                    var closestParentObj = Util.getProperty(hit._source,closestParentObjPath);
-
-                    if(_.isArray(closestParentObj)){
-                        var closestParentObjName = closestParentObjPath.substr(closestParentObjPath.lastIndexOf(".")+1,closestParentObjPath.length);
-                        var closestParentObjParentPath = closestParentObjPath.substr(0, closestParentObjPath.lastIndexOf("."+closestParentObjName));
-                        var closestParentObjectParent = Util.getProperty(hit._source,closestParentObjParentPath);
-
-                        closestParentObjectParent[closestParentObjName]=_.reject(closestParentObj,function(object){
-                            return object.id==entity.id;
-                            //issue: the array can be of other objects, and the affected object may be
-                            //really deep.
-                        })
-                    }else{
-                        delete closestParentObj[objName];
-                    }
-                }
+                //Todo: finish support for deletes.
+//                if(method && method=="DELETE"){
+//                    var objPath = idField.substr(0, idField.lastIndexOf(".id"));
+//                    var objName = objPath.substr(objPath.lastIndexOf(".")+1,objPath.length);
+//                    var closestParentObjPath = idField.substr(0, idField.lastIndexOf("."+objName));
+//                    var closestParentObj = Util.getProperty(hit._source,closestParentObjPath);
+//
+//                    if(_.isArray(closestParentObj)){
+//                        var closestParentObjName = closestParentObjPath.substr(closestParentObjPath.lastIndexOf(".")+1,closestParentObjPath.length);
+//                        var closestParentObjParentPath = closestParentObjPath.substr(0, closestParentObjPath.lastIndexOf("."+closestParentObjName));
+//                        var closestParentObjectParent = Util.getProperty(hit._source,closestParentObjParentPath);
+//
+//                        closestParentObjectParent[closestParentObjName]=_.reject(closestParentObj,function(object){
+//                            return object.id==entity.id;
+//                            //issue: the array can be of other objects, and the affected object may be
+//                            //really deep. We need an expanded query syntax that can query into arrays to sole
+                              //this issue.
+//                        })
+//                    }else{
+//                        delete closestParentObj[objName];
+//                    }
+//                }
                 return unexpandEntity(hit._source);
             })).then(function(result){
                 return entity;
@@ -899,6 +901,12 @@ ElasticFortune.prototype.expandEntity = function (entity,depth){
                 return result;
             },function(err){
                 var errorMessage = err || (""+ val+ " could not be found in "+collectionName);
+                //TODO: finish support for deletes. Maybe this comes back as an error & rejects the update.
+//                if(depth>0){
+//                    delete entity[key];
+//                }else{
+//                    delete entity.links[key];
+//                }
                 console.warn(errorMessage);
             });
         }else{
