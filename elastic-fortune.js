@@ -956,4 +956,21 @@ ElasticFortune.prototype.expandEntity = function (entity,depth){
     });
 }
 
+//Posts an elastic search mapping to the server.Idempotent, so feel free to do this when starting up your server,
+//but if you change the mapping in a way that elastic search can't apply a transform to the current index to get there,
+//you'll have to reload the entire search index with new data, because this will fail.
+ElasticFortune.prototype.initializeMapping=function(mapping){
+
+    var _this = this;
+    var reqBody = JSON.stringify(mapping);
+    var es_resource = this.es_url + '/'+this.index+'/'+this.type+'/_mapping';
+    return requestAsync({uri:es_resource, method: 'PUT', body:reqBody}).then(function(response){
+        var body = JSON.parse(response[1]);
+        if(body.error){
+            throw new Error(body.error);
+        }
+        return body;
+    });
+}
+
 module.exports = ElasticFortune;
