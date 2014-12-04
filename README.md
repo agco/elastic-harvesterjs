@@ -84,3 +84,101 @@ dealerSearch.sync(dealer);
 ```js
 dealerSearch.delete(dealer.id);
 ```
+
+
+##Create an :after callback & keep your elastic search index up to date with PUTs and POSTs on linked documents. (added in 0.0.5)
+#####Note - only 1 "after" callback is allowed per endpoint, so if you enable indexUpdateOnModelUpdate, you're giving it up to elastic-fortune.
+```js
+dealerSearch.enableAutoIndexUpdateOnModelUpdate("subdocumentsFortuneEndpoint","links.path.to.object.id");
+e.g. dealerSearch.enableAutoIndexUpdateOnModelUpdate("brand","links.current_contracts.brand.id");
+```
+
+
+##Update Elastic Search index when a related mongo model changes (added in 0.0.5)
+```js
+entity = this;
+dealerSearch.updateIndexForLinkedDocument("links.path.to.object.id",entity);
+```
+
+##New aggregation syntax introduced (added in 0.0.5)
+GET on search url endpoint, with a url query like:
+
+```js
+http://fuse-api.example.com/tracking_points/search?
+links.equipment.id=<comma-seperated-eq-ids>&limit=0&
+aggregations=eq_agg
+&eq_agg.type=terms
+&eq_agg.field=links.equipment.id
+&eq_agg.aggregations=eq_agg_position_latest,eq_agg_variables
+&eq_agg_position_latest.type=top_hits
+&eq_agg_position_latest.sort=-time
+&eq_agg_position_latest.limit=1
+&eq_agg_position_latest.include=id,time,loc,alt,head
+&eq_agg_variables.type=terms
+&eq_agg_variables.field=tracking_data.spn
+&eq_agg_variables.aggregations=eq_agg_variables_latest
+&eq_agg_variables_latest.type=top_hits
+&eq_agg_variables_latest.sort=-time
+&eq_agg_variables_latest.limit=1
+&eq_agg_variables_latest.include=tracking_data
+```
+
+Expected response:
+```js
+{
+    "tracking_points": [],
+    "meta": {
+        "eq_agg": {
+            "<eq_id1>": {
+                "eq_agg_position_latest": {
+                    "id": "53b186e505904f229c523ec9",
+                    "alt": 39,
+                    "head": 24,
+                    "loc": {
+                        "type": "Point",
+                        "coordinates": [
+                            -114.7253799,
+                            33.4665489
+                        ]
+                    },
+                    "time": "2014-06-30T15:44:44.000Z"
+                },
+                "eq_agg_variables": {
+                    "1862": {
+                        "eq_agg_variables_latest": {
+                            "tracking_data": [
+                                {
+                                    "spn": 1862,
+                                    "raw": 25,
+                                    "imp": 0.05575,
+                                    "met": 0.09000000000000001,
+                                    "brit": 0.05575
+                                }
+                            ]
+                        }
+                    },
+                    "2147542304": {
+                        "eq_agg_variables_latest": {
+                            "tracking_data": [
+                                {
+                                    "spn": 2147542304,
+                                    "raw": 19,
+                                    "imp": 45.1612903224,
+                                    "met": 45.1612903224,
+                                    "brit": 45.1612903224
+                                }
+                            ]
+                        }
+                    }
+                }
+            },
+            "<eq_id2>": {
+                //..
+            }
+        }
+    },
+    "links": {
+        //..
+    }
+}
+```
