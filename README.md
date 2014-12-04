@@ -94,7 +94,7 @@ e.g. dealerSearch.enableAutoIndexUpdateOnModelUpdate("brand","links.current_cont
 ```
 
 
-##Update Elastic Search index when a related mongo model changes (added in 0.0.5)
+##Update Elastic Search index when a related fortune model changes (added in 0.0.5)
 ```js
 entity = this;
 dealerSearch.updateIndexForLinkedDocument("links.path.to.object.id",entity);
@@ -179,6 +179,81 @@ Expected response:
     },
     "links": {
         //..
+    }
+}
+```
+
+##Initialize an elastic search mapping (added in 0.0.6)
+```js
+dealerSearch.initializeMapping(mappingObject).
+```
+
+The Mapping object can be loaded from a js file that looks like:
+```js
+module.exports= {
+    "trackingPoints": {
+        "properties": {
+            "data": {
+                "type": "nested"
+            },
+            "loc" : {
+                "type" : "nested",
+                "properties": {
+                    "location" : {
+                        "type" : "geo_point"
+                    }
+                }
+            },
+            "time" : {
+                "type" : "date"
+            },
+            "links": {
+                "type": "nested",
+                "properties": {
+                    "equipment": {
+                        "type": "nested",
+                        "properties": {
+                            "model": {
+                                "type": "nested",
+                                "properties": {
+                                    "brand":{
+                                        "type": "nested",
+                                        "properties": {
+                                            "name":{
+                                                "type": "string",
+                                                "index": "not_analyzed"
+                                            }
+                                        }
+                                    },
+                                    "equipmentType":{
+                                        "type": "nested",
+                                        "properties": {
+                                            "value":{
+                                                "type": "string",
+                                                "index": "not_analyzed"
+                                            }
+                                        }
+                                    },
+                                    "name":{
+                                        "type": "string",
+                                        "index": "not_analyzed"
+                                    }
+                                }
+                            }
+                        }
+                    },
+                    "duty": {
+                        "type": "nested",
+                        "properties": {
+                            "status":{
+                                "type": "string",
+                                "index": "not_analyzed"
+                            }
+                        }
+                    }
+                }
+            }
+        }
     }
 }
 ```
