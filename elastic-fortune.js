@@ -15,6 +15,7 @@ postPool.maxSockets = 1;
 
 var DEFAULT_AGGREGATION_LIMIT = 0;//0=>Integer.MAX_VALUE
 var DEFAULT_TOP_HITS_AGGREGATION_LIMIT = 10; //Cannot be zero. NOTE: Default number of responses in top_hit aggregation is 10.
+var DEFAULT_SIMPLE_SEARCH_LIMIT = 1000; //simple searches don't specify a limit, and are only used internally for autoupdating
 
 function ElasticFortune (fortune_app,es_url,index,type,collectionNameLookup) {
     var _this= this;
@@ -73,7 +74,7 @@ function ElasticFortune (fortune_app,es_url,index,type,collectionNameLookup) {
 
 
 
-        var esQuery = createEsQuery(predicates, nestedPredicates, geoPredicate,aggregationObjects, sortParams);
+        var esQuery = _this.getEsQueryBody(predicates, nestedPredicates, geoPredicate,aggregationObjects, sortParams);
         esSearch(esQuery,req,res,next);
     };
 
@@ -158,40 +159,15 @@ function ElasticFortune (fortune_app,es_url,index,type,collectionNameLookup) {
         })
     }
 
-    function transformSourceObjectToSimplyLinkedObject(sourceObject,fields){
-        _.each(sourceObject.links || [],function(val,key){
-            if(!_.isArray(sourceObject.links[key])){
-                sourceObject.links[key] = ObjectId(val.id);
-
-            }else{
-                _.each(sourceObject.links[key],function(innerVal,innerKey){
-                    sourceObject.links[key][innerKey] = ObjectId(innerVal.id);
-                })
-            }
-        })
-        fields && fields.length && (sourceObject = Util.includeFields(sourceObject,fields));
-        return sourceObject;
-    }
-
-    function getResponseArrayFromESResults(results,fields){
-
-        var retVal = [];
-        if (results && results.hits && results.hits.hits){
-            _.each(results.hits.hits,function(hit){
-                retVal.push(transformSourceObjectToSimplyLinkedObject(hit._source,fields));
-            })
-        }
-        return retVal;
-    }
-
     //FortuneRoute is used to appendLinks & appendLinked.
     this.setFortuneRoute = function(fortuneRoute){
         this.fortuneRoute = fortuneRoute;
     }
 
-    function getSourceObj(esResponseObject){
-        var obj = esResponseObject["_source"];
-     return obj;
+    function getSourceObjects(aggResponse){
+       return  _.map(aggResponse.hits.hits,function(esReponseObj){
+            return esReponseObj["_source"];
+        });
     }
 
     function sendSearchResponse(es_results, res, includes,fields) {
@@ -328,384 +304,515 @@ function ElasticFortune (fortune_app,es_url,index,type,collectionNameLookup) {
         });
     }
 
-    var requiredAggOptions = {
-        top_hits:["type","include"],
-        terms:["type","field"]
-    }
-
-    function assertAggregationObjectHasRequiredOptions(aggregationObject){
-        var type = aggregationObject.type||"terms";
-        _.each(requiredAggOptions[type],function(requiredOption){
-            Util.assertAsDefined(aggregationObject[requiredOption],type+" aggregations require that a '"+requiredOption+"' paramenter is specified.");
-        })
-    }
-
-
-    function createEsQuery(predicates, nestedPredicates, geoPredicate,aggregationObjects,sortParams) {
-
-        var createEsQueryFragment = function (fields, queryVal) {
-
-            return {
-                "query": {
-                    "query_string": {
-                        "fields": [fields],
-                        "query": queryVal
-                    }
-                }};
-        };
-
-
-        var createMatchQueryFragment = function (field,value){
-            var fragment = {"query":{"match":{}}};
-            fragment["query"]["match"][field]=value;
-
-            return fragment;
-        }
-        createEsQueryFragment = createMatchQueryFragment;
-
-        /*
-         * Groups predicates at their lowest match level to simplify creating nested queries
-         */
-        var groupNestedPredicates = function(nestedPredicates){
-            var maxDepth=0;
-            var nestedPredicateObj = {};
-            var nestedPredicateParts= _.map(nestedPredicates,function(predicateArr){
-                var predicate = predicateArr[0];
-                var retVal = predicate.split(".");
-                nestedPredicateObj[predicate]=predicateArr[1];
-                retVal.length>maxDepth && (maxDepth = retVal.length);
-                return retVal;
-            });
-            var groups={};
-            for (var i=0;i<maxDepth;i++){
-                groups[i]= _.groupBy(nestedPredicateParts,function(predicateParts){
-                    var retval="";
-                    for (var j=0;j<i+1;j++) {
-                        retval+=(predicateParts[j]?predicateParts[j]+".":"");
-                    }
-                    return retval.substr(0,retval.length-1);
-                })
-            }
-
-            var completed = {};
-            var levels = {};
-            var paths = {};
-            //Simplifies the grouping
-            for (var i=maxDepth-1;i>=0;i--) {
-                _.each(groups[i],function(values,key){
-                    _.each(values,function(value){
-                        var strKey = value.join('.');
-                        if(!completed[strKey] && values.length>1){
-                            (!levels[i] && (levels[i]=[]));
-                            levels[i].push(strKey);
-                            (completed[strKey]=true);
-                            paths[i]=key;
-                        }
-                        if(!completed[strKey] && i<1){
-                            (!levels[i] && (levels[i]=[]));
-                            levels[i].push(strKey);
-                            (completed[strKey]=true);
-                            paths[i]=key;
-                        }
-                    });
-                });
-            }
-            return {groups:levels,paths:paths, nestedPredicateObj:nestedPredicateObj};
-        };
-
-        var createNestedPredicateFragment = function(grouping){
-            var basicQuery = _.map(grouping.groups,function(group,index){
-                //add basic terms, then for each predicate in the level group add extra terms.
-                var path = grouping.paths[index];
-                var qObj =
-                {
-                    "nested": {
-                        "path": path,
-                        "query": {
-                            "bool": {
-                                "must": []
-                            }
-                        }
-                    }
-                };
-
-                _.each(group,function(groupling){
-                    var value = grouping.nestedPredicateObj[groupling];
-                    var key = groupling;
-                    var localPath = groupling.substr(0, groupling.lastIndexOf("."));
-
-                    var matchObj=createEsQueryFragment(key,value)["query"];
-
-                    if(localPath == path){
-                        qObj.nested.query.bool.must.push(matchObj);
-                    }else{
-                        qObj.nested.query.bool.must.push({
-                            "nested": {
-                                "path" : localPath,
-                                "query": matchObj
-                            }
-                        });
-                    }
-                });
-                return qObj;
-            });
-
-            var isExpandableQuery = function(basicQuery){
-                var retVal = false;
-                _.each(basicQuery,function(query) {
-                    retVal = retVal || isAlongExpandableQueryLine(query);
-                })
-                return retVal;
-            }
-
-            var isAlongExpandableQueryLine = function(query){
-                var retVal = false;
-                _.each(query.nested.query.bool.must, function (innerQuery, mustI) {
-                    var matchObj = innerQuery.nested.query.match;
-                    var values = _.values(matchObj);
-                    if (_.isArray(values[0])) {
-                        retVal = true;
-                    }
-                })
-                return retVal;
-            }
-
-            //Handles the case where multiple values are submitted for one key
-            //This transforms a query that tries to match something like {match:{links.husband.name:["Peter","Solomon"]} to one that
-            //instead duplicates all parts of the query and splits it so each match term has it's own search query. This was done so
-            //searches would not be unduely limited by the nested level.
-            var getExpandedQuery = function(basicQuery){
-                var expandedQuery = [];
-                var needsExpandedQuery = isExpandableQuery(basicQuery);
-                if(!needsExpandedQuery){
-                    expandedQuery = basicQuery;
-                }else{
-                    _.each(basicQuery,function(query,i){
-                        var thisNonExpandableQueryWasAlreadyCloned=false;
-                        var isExpandableQueryLine = isAlongExpandableQueryLine(query);
-                        _.each(query.nested.query.bool.must,function(innerQuery,mustI){
-                            var matchObj = innerQuery.nested.query.match;
-                            var values = _.values(matchObj);
-                            if(values.length>1){
-                                console.warn("Our match query isn't supposed to have multiple keys in it. We expect something like {match:{name:'Peter'}}, and you've constructed a match like {match:{name:'Peter',type:'person'}}");
-                                throw Error("The query expansion algorithm does not expect this query form.")
-                            }
-                            if(_.isArray(values[0])){
-                                _.each(values[0],function(value){
-                                    var key = _.keys(matchObj)[0];
-                                    var newQuery = _.cloneDeep(basicQuery);
-                                    var relatedMatchObj = newQuery[i].nested.query.bool.must[mustI].nested.query.match;
-                                    relatedMatchObj[key]=value;
-                                    expandedQuery.push(newQuery[i]);
-                                });
-                            }else if (!isExpandableQueryLine && !thisNonExpandableQueryWasAlreadyCloned){
-                                //the only queries that get cloned are the ones on the query line of the expanded query.
-                                expandedQuery.push(basicQuery[i]);
-                                thisNonExpandableQueryWasAlreadyCloned = true;
-                            }
-                        })
-                    });
-                }
-
-                return expandedQuery;
-            };
-
-            var expandedQuery = getExpandedQuery(basicQuery);
-            if(expandedQuery==basicQuery){
-                return expandedQuery;
-            }else if (isExpandableQuery(expandedQuery)){
-                return getExpandedQuery(expandedQuery);
-            }else{
-                return expandedQuery;
-            }
-
-
-        };
-        var nestedPredicatesESFragment = createNestedPredicateFragment(groupNestedPredicates(nestedPredicates));
-
-        var createGeoPredicateESFragment = function(geoPredicate){
-            return {
-                "geo_distance": {
-                    "distance":geoPredicate['distance'],
-                    "location": [Number(geoPredicate['lon']),Number(geoPredicate['lat'])]
-                }
-            };
-        };
-
-
-        var predicatesESFragment = _.map(predicates, function (predicate) {
-
-            var key = predicate["key"];
-            var value = predicate["value"];
-
-            //Handles the case where multiple values are submitted for one key
-            if(_.isArray(value)){
-                var retVal = [];
-                _.each(value,function(val) {
-                    retVal.push(createEsQueryFragment(key,val));
-                })
-                return retVal;
-            }else{
-                return createEsQueryFragment(key,value);
-            }
-
-        });
-        predicatesESFragment = _.flatten(predicatesESFragment);
-
-        var geoPredicateExists = (Object.keys(geoPredicate).length>2);
-
-        geoPredicateExists && predicatesESFragment.push(createGeoPredicateESFragment(geoPredicate));
-        var allPredicateFragments=nestedPredicatesESFragment.concat(predicatesESFragment);
-
-        var filter = {
-            and: allPredicateFragments
-        };
-
-        var composedESQuery = {
-            query: {
-                filtered: {
-                    query: { match_all: {} }
-                }
-            }
-        };
-
-        allPredicateFragments.length>0 && (composedESQuery.query.filtered.filter=filter);
-
-        function getAggregationQuery(aggregationObjects){
-            var aggs = {};
-            _.each(aggregationObjects || [],function(aggregationObject){
-                assertAggregationObjectHasRequiredOptions(aggregationObject);
-                var isDeepAggregation = false;
-                if(aggregationObject.type=="terms"){
-                    //Todo: stop crash if no field is provided, or crash more elegantly.
-                    isDeepAggregation = (aggregationObject.field.lastIndexOf(".")>0);
-                    var path = aggregationObject.field.substr(0, aggregationObject.field.lastIndexOf("."));
-                    var shallowTermsAggs = {
-                        terms: {
-                            field: aggregationObject.field,
-                            size:aggregationObject.limit || DEFAULT_AGGREGATION_LIMIT
-                        }
-                    };
-                    //deep work should be repeated.
-                    if(isDeepAggregation){
-                        aggs[aggregationObject.name]={
-                            nested: {
-                                path: path
-                            },
-                            aggs:{}
-                        }
-                        aggs[aggregationObject.name].aggs[aggregationObject.name]=shallowTermsAggs;
-                    }else{
-                        aggs[aggregationObject.name] = shallowTermsAggs;
-                    }
-                }else if (aggregationObject.type="top_hits"){
-                    var shallowTermsAggs = {
-                        top_hits: {
-                            size:aggregationObject.limit?Number(aggregationObject.limit) : DEFAULT_TOP_HITS_AGGREGATION_LIMIT
-                        }
-                    };
-                    //Adds in sorting
-                    if(aggregationObject.sort){
-                        _.each(aggregationObject.sort.split(','),function(sortParam) {
-                            var sortDirection = (sortParam[0]!="-"?"asc":"desc");
-                            sortDirection=="desc" && (sortParam = sortParam.substr(1));
-                            shallowTermsAggs.top_hits.sort= shallowTermsAggs.top_hits.sort || [];
-                            var sortTerm = {};
-                            sortTerm[sortParam]={"order":sortDirection};
-                            shallowTermsAggs.top_hits.sort.push(sortTerm);
-                        });
-                    }
-                    if(aggregationObject.include){
-                        shallowTermsAggs.top_hits["_source"]={};
-                        shallowTermsAggs.top_hits["_source"]["include"] = aggregationObject.include.split(',');
-                    }
-                    aggs[aggregationObject.name] = shallowTermsAggs;
-
-                }
-
-                if(aggregationObject.aggregations){
-                    var furtherAggs = getAggregationQuery(aggregationObject.aggregations);
-                    var relevantAggQueryObj = aggs[aggregationObject.name];
-                    if(isDeepAggregation){
-                        //TODO:this should not be an equals; you may overwrite an agg here!
-                        aggs[aggregationObject.name].aggs[aggregationObject.name]["aggs"]={"reverse_nesting":{"reverse_nested":{}}};
-                        relevantAggQueryObj = aggs[aggregationObject.name].aggs[aggregationObject.name].aggs["reverse_nesting"]
-                    }
-
-                    if(!relevantAggQueryObj.aggs){
-                        relevantAggQueryObj.aggs = furtherAggs;
-                    }else{
-                        _.each(furtherAggs,function(furtherAgg,key){
-                            relevantAggQueryObj.aggs[key]=furtherAgg;
-                        });
-                    }
-                }
-            })
-            return aggs;
-        }
-
-        composedESQuery.aggs = getAggregationQuery(aggregationObjects);
-        console.warn(JSON.stringify(composedESQuery.aggs));
-        if(geoPredicateExists){
-            geoPredicate.unit = geoPredicate.distance.replace(/\d+/g, '');
-            var distanceFunction=esDistanceFunctionLookup[geoPredicate.unit];
-
-            if(distanceFunction){
-                composedESQuery.script_fields = composedESQuery.script_fields || {};
-                composedESQuery.script_fields.distance =
-                {
-                    "params" : {
-                        "lat" : Number(geoPredicate['lat']),
-                        "lon" : Number(geoPredicate['lon'])
-                    },
-                    "script" : "doc[\u0027location\u0027]."+distanceFunction+"(lat,lon)"
-                }
-                composedESQuery["fields"]= [ "_source" ];
-            }
-        }
-
-        if(sortParams){
-            composedESQuery.sort = [];
-            _.each(sortParams,function(sortParam){
-                var sortTerm = {};
-                var sortDirection = (sortParam[0]!="-"?"asc":"desc");
-                sortDirection=="desc" && (sortParam = sortParam.substr(1));
-
-                if (_s.startsWith(sortParam, "links.")) {
-                    //nested sort - not sure if this needs to be implemented.
-                }else if (sortParam=="distance"){
-                    if(geoPredicateExists) {
-                        sortTerm["_geo_distance"] =
-                        {
-                            "location": [Number(geoPredicate['lon']),Number(geoPredicate['lat'])],
-                            "order": sortDirection,
-                            "unit": geoPredicate.unit.toLowerCase(),
-                            "mode": "min",
-                            "distance_type": "sloppy_arc"
-                        }
-                    }
-                }else{
-                    //normal, simple sort
-                    sortTerm[sortParam]={order:sortDirection,"ignore_unmapped":true};
-                }
-                composedESQuery.sort.push(sortTerm);
-            });
-        }
-
-        var composedEsQuerystr = JSON.stringify(composedESQuery);
-        return  composedEsQuerystr;
-    }
-
-    var esDistanceFunctionLookup={
-        mi:"arcDistanceInMiles",
-        miles:"arcDistanceInMiles",
-        km:"arcDistanceInKm",
-        kilometers:"arcDistanceInKm",
-        m: "arcDistance",
-        meters:"arcDistance"
-    }
     return this;
 }
+
+var requiredAggOptions = {
+    top_hits:["type","include"],
+    terms:["type","field"]
+}
+
+function assertAggregationObjectHasRequiredOptions(aggregationObject){
+    var type = aggregationObject.type||"terms";
+    _.each(requiredAggOptions[type],function(requiredOption){
+        Util.assertAsDefined(aggregationObject[requiredOption],type+" aggregations require that a '"+requiredOption+"' paramenter is specified.");
+    })
+}
+
+var esDistanceFunctionLookup={
+    mi:"arcDistanceInMiles",
+    miles:"arcDistanceInMiles",
+    km:"arcDistanceInKm",
+    kilometers:"arcDistanceInKm",
+    m: "arcDistance",
+    meters:"arcDistance"
+}
+/*
+    +++ Add support for changing collections.
+ //Plan is:
+ + 1) Figure out exactly how you want to auto-update when other collections change.
+        -
+ + 2) Create Internal Search apparatus that allows us to figure out which dealers need to be updated when other collections change.
+ 3) Get each entire documents we need & strip them back to be the simple documents that went in.
+ - 4) Expand links for the simple documents & put them back in ES, at the same ids.
+ 5) Test by posting an update to country name & searching for all dealers with that country name.
+
+ */
+
+//Transforms an expanded ES source object to an unexpanded object
+function unexpandEntity(sourceObject,includeFields){
+    _.each(sourceObject.links || [],function(val,key){
+        if(!_.isArray(sourceObject.links[key])){
+            sourceObject.links[key] = ObjectId(val.id);
+
+        }else{
+            _.each(sourceObject.links[key],function(innerVal,innerKey){
+                sourceObject.links[key][innerKey] = ObjectId(innerVal.id);
+            })
+        }
+    })
+    includeFields && includeFields.length && (sourceObject = Util.includeFields(sourceObject,includeFields));
+    return sourceObject;
+}
+
+function getResponseArrayFromESResults(results,fields){
+
+    var retVal = [];
+    if (results && results.hits && results.hits.hits){
+        _.each(results.hits.hits,function(hit){
+            retVal.push(unexpandEntity(hit._source,fields));
+        })
+    }
+    return retVal;
+}
+
+
+ElasticFortune.prototype.getEsQueryBody = function (predicates, nestedPredicates, geoPredicate,aggregationObjects,sortParams) {
+
+    var createEsQueryFragment = function (fields, queryVal) {
+
+        return {
+            "query": {
+                "query_string": {
+                    "fields": [fields],
+                    "query": queryVal
+                }
+            }};
+    };
+
+
+    var createMatchQueryFragment = function (field,value){
+        var fragment = {"query":{"match":{}}};
+        fragment["query"]["match"][field]=value;
+
+        return fragment;
+    }
+    createEsQueryFragment = createMatchQueryFragment;
+
+    /*
+     * Groups predicates at their lowest match level to simplify creating nested queries
+     */
+    var groupNestedPredicates = function(nestedPredicates){
+        var maxDepth=0;
+        var nestedPredicateObj = {};
+        var nestedPredicateParts= _.map(nestedPredicates,function(predicateArr){
+            var predicate = predicateArr[0];
+            var retVal = predicate.split(".");
+            nestedPredicateObj[predicate]=predicateArr[1];
+            retVal.length>maxDepth && (maxDepth = retVal.length);
+            return retVal;
+        });
+        var groups={};
+        for (var i=0;i<maxDepth;i++){
+            groups[i]= _.groupBy(nestedPredicateParts,function(predicateParts){
+                var retval="";
+                for (var j=0;j<i+1;j++) {
+                    retval+=(predicateParts[j]?predicateParts[j]+".":"");
+                }
+                return retval.substr(0,retval.length-1);
+            })
+        }
+
+        var completed = {};
+        var levels = {};
+        var paths = {};
+        //Simplifies the grouping
+        for (var i=maxDepth-1;i>=0;i--) {
+            _.each(groups[i],function(values,key){
+                _.each(values,function(value){
+                    var strKey = value.join('.');
+                    if(!completed[strKey] && values.length>1){
+                        (!levels[i] && (levels[i]=[]));
+                        levels[i].push(strKey);
+                        (completed[strKey]=true);
+                        paths[i]=key;
+                    }
+                    if(!completed[strKey] && i<1){
+                        (!levels[i] && (levels[i]=[]));
+                        levels[i].push(strKey);
+                        (completed[strKey]=true);
+                        paths[i]=key;
+                    }
+                });
+            });
+        }
+        return {groups:levels,paths:paths, nestedPredicateObj:nestedPredicateObj};
+    };
+
+    var createNestedPredicateFragment = function(grouping){
+        var basicQuery = _.map(grouping.groups,function(group,index){
+            //add basic terms, then for each predicate in the level group add extra terms.
+            var path = grouping.paths[index];
+            var qObj =
+            {
+                "nested": {
+                    "path": path,
+                    "query": {
+                        "bool": {
+                            "must": []
+                        }
+                    }
+                }
+            };
+
+            _.each(group,function(groupling){
+                var value = grouping.nestedPredicateObj[groupling];
+                var key = groupling;
+                var localPath = groupling.substr(0, groupling.lastIndexOf("."));
+
+                var matchObj=createEsQueryFragment(key,value)["query"];
+
+                if(localPath == path){
+                    qObj.nested.query.bool.must.push(matchObj);
+                }else{
+                    qObj.nested.query.bool.must.push({
+                        "nested": {
+                            "path" : localPath,
+                            "query": matchObj
+                        }
+                    });
+                }
+            });
+            return qObj;
+        });
+
+        var isExpandableQuery = function(basicQuery){
+            var retVal = false;
+            _.each(basicQuery,function(query) {
+                retVal = retVal || isAlongExpandableQueryLine(query);
+            })
+            return retVal;
+        }
+
+        var isAlongExpandableQueryLine = function(query){
+            var retVal = false;
+            _.each(query.nested.query.bool.must, function (innerQuery, mustI) {
+                var matchObj = innerQuery.nested.query.match;
+                var values = _.values(matchObj);
+                if (_.isArray(values[0])) {
+                    retVal = true;
+                }
+            })
+            return retVal;
+        }
+
+        //Handles the case where multiple values are submitted for one key
+        //This transforms a query that tries to match something like {match:{links.husband.name:["Peter","Solomon"]} to one that
+        //instead duplicates all parts of the query and splits it so each match term has it's own search query. This was done so
+        //searches would not be unduely limited by the nested level.
+        var getExpandedQuery = function(basicQuery){
+            var expandedQuery = [];
+            var needsExpandedQuery = isExpandableQuery(basicQuery);
+            if(!needsExpandedQuery){
+                expandedQuery = basicQuery;
+            }else{
+                _.each(basicQuery,function(query,i){
+                    var thisNonExpandableQueryWasAlreadyCloned=false;
+                    var isExpandableQueryLine = isAlongExpandableQueryLine(query);
+                    _.each(query.nested.query.bool.must,function(innerQuery,mustI){
+                        var matchObj = innerQuery.nested.query.match;
+                        var values = _.values(matchObj);
+                        if(values.length>1){
+                            console.warn("Our match query isn't supposed to have multiple keys in it. We expect something like {match:{name:'Peter'}}, and you've constructed a match like {match:{name:'Peter',type:'person'}}");
+                            throw Error("The query expansion algorithm does not expect this query form.")
+                        }
+                        if(_.isArray(values[0])){
+                            _.each(values[0],function(value){
+                                var key = _.keys(matchObj)[0];
+                                var newQuery = _.cloneDeep(basicQuery);
+                                var relatedMatchObj = newQuery[i].nested.query.bool.must[mustI].nested.query.match;
+                                relatedMatchObj[key]=value;
+                                expandedQuery.push(newQuery[i]);
+                            });
+                        }else if (!isExpandableQueryLine && !thisNonExpandableQueryWasAlreadyCloned){
+                            //the only queries that get cloned are the ones on the query line of the expanded query.
+                            expandedQuery.push(basicQuery[i]);
+                            thisNonExpandableQueryWasAlreadyCloned = true;
+                        }
+                    })
+                });
+            }
+
+            return expandedQuery;
+        };
+
+        var expandedQuery = getExpandedQuery(basicQuery);
+        if(expandedQuery==basicQuery){
+            return expandedQuery;
+        }else if (isExpandableQuery(expandedQuery)){
+            return getExpandedQuery(expandedQuery);
+        }else{
+            return expandedQuery;
+        }
+
+
+    };
+    var nestedPredicatesESFragment = createNestedPredicateFragment(groupNestedPredicates(nestedPredicates));
+
+    var createGeoPredicateESFragment = function(geoPredicate){
+        return {
+            "geo_distance": {
+                "distance":geoPredicate['distance'],
+                "location": [Number(geoPredicate['lon']),Number(geoPredicate['lat'])]
+            }
+        };
+    };
+
+
+    var predicatesESFragment = _.map(predicates, function (predicate) {
+
+        var key = predicate["key"];
+        var value = predicate["value"];
+
+        //Handles the case where multiple values are submitted for one key
+        if(_.isArray(value)){
+            var retVal = [];
+            _.each(value,function(val) {
+                retVal.push(createEsQueryFragment(key,val));
+            })
+            return retVal;
+        }else{
+            return createEsQueryFragment(key,value);
+        }
+
+    });
+    predicatesESFragment = _.flatten(predicatesESFragment);
+
+    var geoPredicateExists = (Object.keys(geoPredicate).length>2);
+
+    geoPredicateExists && predicatesESFragment.push(createGeoPredicateESFragment(geoPredicate));
+    var allPredicateFragments=nestedPredicatesESFragment.concat(predicatesESFragment);
+
+    var filter = {
+        and: allPredicateFragments
+    };
+
+    var composedESQuery = {
+        query: {
+            filtered: {
+                query: { match_all: {} }
+            }
+        }
+    };
+
+    allPredicateFragments.length>0 && (composedESQuery.query.filtered.filter=filter);
+
+    function getAggregationQuery(aggregationObjects){
+        var aggs = {};
+        _.each(aggregationObjects || [],function(aggregationObject){
+            assertAggregationObjectHasRequiredOptions(aggregationObject);
+            var isDeepAggregation = false;
+            if(aggregationObject.type=="terms"){
+                //Todo: stop crash if no field is provided, or crash more elegantly.
+                isDeepAggregation = (aggregationObject.field.lastIndexOf(".")>0);
+                var path = aggregationObject.field.substr(0, aggregationObject.field.lastIndexOf("."));
+                var shallowTermsAggs = {
+                    terms: {
+                        field: aggregationObject.field,
+                        size:aggregationObject.limit || DEFAULT_AGGREGATION_LIMIT
+                    }
+                };
+                //deep work should be repeated.
+                if(isDeepAggregation){
+                    aggs[aggregationObject.name]={
+                        nested: {
+                            path: path
+                        },
+                        aggs:{}
+                    }
+                    aggs[aggregationObject.name].aggs[aggregationObject.name]=shallowTermsAggs;
+                }else{
+                    aggs[aggregationObject.name] = shallowTermsAggs;
+                }
+            }else if (aggregationObject.type="top_hits"){
+                var shallowTermsAggs = {
+                    top_hits: {
+                        size:aggregationObject.limit?Number(aggregationObject.limit) : DEFAULT_TOP_HITS_AGGREGATION_LIMIT
+                    }
+                };
+                //Adds in sorting
+                if(aggregationObject.sort){
+                    _.each(aggregationObject.sort.split(','),function(sortParam) {
+                        var sortDirection = (sortParam[0]!="-"?"asc":"desc");
+                        sortDirection=="desc" && (sortParam = sortParam.substr(1));
+                        shallowTermsAggs.top_hits.sort= shallowTermsAggs.top_hits.sort || [];
+                        var sortTerm = {};
+                        sortTerm[sortParam]={"order":sortDirection};
+                        shallowTermsAggs.top_hits.sort.push(sortTerm);
+                    });
+                }
+                if(aggregationObject.include){
+                    shallowTermsAggs.top_hits["_source"]={};
+                    shallowTermsAggs.top_hits["_source"]["include"] = aggregationObject.include.split(',');
+                }
+                aggs[aggregationObject.name] = shallowTermsAggs;
+
+            }
+
+            if(aggregationObject.aggregations){
+                var furtherAggs = getAggregationQuery(aggregationObject.aggregations);
+                var relevantAggQueryObj = aggs[aggregationObject.name];
+                if(isDeepAggregation){
+                    //TODO:this should not be an equals; you may overwrite an agg here!
+                    aggs[aggregationObject.name].aggs[aggregationObject.name]["aggs"]={"reverse_nesting":{"reverse_nested":{}}};
+                    relevantAggQueryObj = aggs[aggregationObject.name].aggs[aggregationObject.name].aggs["reverse_nesting"]
+                }
+
+                if(!relevantAggQueryObj.aggs){
+                    relevantAggQueryObj.aggs = furtherAggs;
+                }else{
+                    _.each(furtherAggs,function(furtherAgg,key){
+                        relevantAggQueryObj.aggs[key]=furtherAgg;
+                    });
+                }
+            }
+        })
+        return aggs;
+    }
+
+    composedESQuery.aggs = getAggregationQuery(aggregationObjects);
+    if(geoPredicateExists){
+        geoPredicate.unit = geoPredicate.distance.replace(/\d+/g, '');
+        var distanceFunction=esDistanceFunctionLookup[geoPredicate.unit];
+
+        if(distanceFunction){
+            composedESQuery.script_fields = composedESQuery.script_fields || {};
+            composedESQuery.script_fields.distance =
+            {
+                "params" : {
+                    "lat" : Number(geoPredicate['lat']),
+                    "lon" : Number(geoPredicate['lon'])
+                },
+                "script" : "doc[\u0027location\u0027]."+distanceFunction+"(lat,lon)"
+            }
+            composedESQuery["fields"]= [ "_source" ];
+        }
+    }
+
+    if(sortParams){
+        composedESQuery.sort = [];
+        _.each(sortParams,function(sortParam){
+            var sortTerm = {};
+            var sortDirection = (sortParam[0]!="-"?"asc":"desc");
+            sortDirection=="desc" && (sortParam = sortParam.substr(1));
+
+            if (_s.startsWith(sortParam, "links.")) {
+                //nested sort - not sure if this needs to be implemented.
+            }else if (sortParam=="distance"){
+                if(geoPredicateExists) {
+                    sortTerm["_geo_distance"] =
+                    {
+                        "location": [Number(geoPredicate['lon']),Number(geoPredicate['lat'])],
+                        "order": sortDirection,
+                        "unit": geoPredicate.unit.toLowerCase(),
+                        "mode": "min",
+                        "distance_type": "sloppy_arc"
+                    }
+                }
+            }else{
+                //normal, simple sort
+                sortTerm[sortParam]={order:sortDirection,"ignore_unmapped":true};
+            }
+            composedESQuery.sort.push(sortTerm);
+        });
+    }
+
+    var composedEsQuerystr = JSON.stringify(composedESQuery);
+    return  composedEsQuerystr;
+};
+
+//Todo: note if POSTS become much slower in production. If they do, drop POSTS from here - they're not really important.
+//Todo: Note that this does not cover deletes.
+ElasticFortune.prototype.enableAutoIndexUpdateOnModelUpdate = function (endpoint,idField) {
+    var _this = this;
+    this.fortune_app.after(endpoint, function (req, res, next) {
+        var entity = this;
+        if (( req.method === 'POST' || req.method === 'PUT') && entity.id) {
+            return _this.updateIndexForLinkedDocument(idField,entity);
+        } else {
+            return this;
+        }
+    });
+//                 //Todo: finish support for deletes.
+//    this.fortune_app.before(endpoint, function (req, res, next) {
+//        var entity = this;
+//        if ((req.method === 'DELETE') && entity.id) {
+//            return _this.updateIndexForLinkedDocument(idField,entity,req.method);
+//        } else {
+//            return this;
+//        }
+//    });
+
+};
+
+///Searches elastic search at idField for entity.id & triggers a reindex. If method is DELETE, it'll
+//handle the update specially, otherwise, you can ignore that param. Note that the delete param expects
+//that the idField ends in .id.
+ElasticFortune.prototype.updateIndexForLinkedDocument = function (idField,entity,method) {
+    var _this = this;
+    return _this.simpleSearch(idField,entity.id)
+        .then(function(result){
+            return _this.expandAndSync(_.map(result.hits.hits,function(hit){
+                //Todo: finish support for deletes.
+//                if(method && method=="DELETE"){
+//                    var objPath = idField.substr(0, idField.lastIndexOf(".id"));
+//                    var objName = objPath.substr(objPath.lastIndexOf(".")+1,objPath.length);
+//                    var closestParentObjPath = idField.substr(0, idField.lastIndexOf("."+objName));
+//                    var closestParentObj = Util.getProperty(hit._source,closestParentObjPath);
+//
+//                    if(_.isArray(closestParentObj)){
+//                        var closestParentObjName = closestParentObjPath.substr(closestParentObjPath.lastIndexOf(".")+1,closestParentObjPath.length);
+//                        var closestParentObjParentPath = closestParentObjPath.substr(0, closestParentObjPath.lastIndexOf("."+closestParentObjName));
+//                        var closestParentObjectParent = Util.getProperty(hit._source,closestParentObjParentPath);
+//
+//                        closestParentObjectParent[closestParentObjName]=_.reject(closestParentObj,function(object){
+//                            return object.id==entity.id;
+//                            //issue: the array can be of other objects, and the affected object may be
+//                            //really deep. We need an expanded query syntax that can query into arrays to sole
+                              //this issue.
+//                        })
+//                    }else{
+//                        delete closestParentObj[objName];
+//                    }
+//                }
+                return unexpandEntity(hit._source);
+            })).then(function(result){
+                return entity;
+            });
+        });
+};
+
+//Takes a search predicate (or nested predicate) field & value and returns a promise for corresponding models.
+ElasticFortune.prototype.simpleSearch = function (field,value) {
+    var predicates=[];
+    var nestedPredicates=[];
+    if(field.indexOf(".")==-1){
+        var predicate = {};
+        predicate[field]=value;
+        predicates.push(predicate);
+    }else{
+        var nestedPredicate = [field,value];
+        nestedPredicates.push(nestedPredicate);
+    }
+    var reqBody = this.getEsQueryBody(predicates,nestedPredicates,{},[],undefined);
+    var _this = this;
+    var params=[];
+    params.push("size="+DEFAULT_SIMPLE_SEARCH_LIMIT);
+    var queryStr = '?'+params.join('&');
+
+    var es_resource = this.es_url + '/'+this.index+'/'+this.type+'/_search'+queryStr;
+    return requestAsync({uri:es_resource, method: 'GET', body: reqBody}).then(function(response) {
+        var es_results = JSON.parse(response[1]);
+        if (es_results.error) {
+            console.warn(es_results.error);
+            throw new Error("Your query was malformed, so it failed. Please check the api to make sure you're using it correctly.");
+        } else {
+            return es_results;
+        }
+    });
+
+}
+
 /** Delete Related **/
 //delete: Just deletes the #id item of the initialized type.
 ElasticFortune.prototype.delete = function(id){
@@ -734,12 +841,18 @@ ElasticFortune.prototype.enableAutoSync= function(endpoint){
     });
 };
 
-//expandAndSync: will expand all links in the model, then push it to elastic search
-ElasticFortune.prototype.expandAndSync = function(model) {
-    var _this=this;
-    return this.expandEntity(model).then(function(result) {
-        return _this.sync(result);
-    })
+//expandAndSync: will expand all links in the model, then push it to elastic search.
+//Works with one model or an array of models.
+//Todo: move to batch update model for multiples models.
+ElasticFortune.prototype.expandAndSync = function (models) {
+    models = [].concat(models);
+    var _this = this;
+    var promises = _.map(models,function(model){
+        return _this.expandEntity(model).then(function(result) {
+            return _this.sync(result);
+        })
+    });
+    return RSVP.all(promises);
 }
 
 //sync: will push model to elastic search WITHOUT expanding any links.
@@ -788,8 +901,13 @@ ElasticFortune.prototype.expandEntity = function (entity,depth){
                 return result;
             },function(err){
                 var errorMessage = err || (""+ val+ " could not be found in "+collectionName);
+                //TODO: finish support for deletes. Maybe this comes back as an error & rejects the update.
+//                if(depth>0){
+//                    delete entity[key];
+//                }else{
+//                    delete entity.links[key];
+//                }
                 console.warn(errorMessage);
-
             });
         }else{
             console.warn("Failed to find the name of the collection with "+key +" in it.");
