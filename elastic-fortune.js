@@ -845,6 +845,7 @@ ElasticFortune.prototype.enableAutoSync= function(endpoint){
 //Works with one model or an array of models.
 //Todo: move to batch update model for multiples models.
 ElasticFortune.prototype.expandAndSync = function (models) {
+    var inputIsArray = _.isArray(models);
     models = [].concat(models);
     var _this = this;
     var promises = _.map(models,function(model){
@@ -852,7 +853,7 @@ ElasticFortune.prototype.expandAndSync = function (models) {
             return _this.sync(result);
         })
     });
-    return RSVP.all(promises);
+    return inputIsArray?RSVP.all(promises):promises[0];
 }
 
 //sync: will push model to elastic search WITHOUT expanding any links.
