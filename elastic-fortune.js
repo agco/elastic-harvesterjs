@@ -80,7 +80,10 @@ function ElasticFortune (fortune_app,es_url,index,type,collectionNameLookup) {
 
     var permittedAggOptions = {
         top_hits:["type","sort","limit","include"],
-        terms:["type","order","field","aggregations"]
+        terms:["type","order","field","aggregations"],
+        stats:["type","field"],
+        extended_stats:["type","field"]
+
     }
 
     function setValueIfExists(obj,property,val,fn){
@@ -203,19 +206,39 @@ function ElasticFortune (fortune_app,es_url,index,type,collectionNameLookup) {
                                         return esReponseObj["_source"];
                                     });
                                     //to combine nested aggs w others, you have to un-nest them, & this takes up an aggregation-space.
-                                }else if(responseKey=="reverse_nesting"){
+                                }else if (responseKey!="reverse_nesting" && aggResponse){ //stats & extended_stats aggs
+                                    //This means it's the result of a nested stats or extended stats query.
+                                    if(aggResponse[responseKey]){
+                                        retVal[responseKey] = aggResponse[responseKey];
+                                    }else{
+                                        retVal[responseKey] = aggResponse;
+                                    }
+                                }
+
+                                else if(responseKey=="reverse_nesting"){
                                     _.each(aggResponse,function(reverseNestedResponseProperty,reverseNestedResponseKey){
-                                        if(reverseNestedResponseProperty!="doc_count" && (reverseNestedResponseProperty.buckets)){
+                                        if(reverseNestedResponseKey=="doc_count"){
+                                            return;
+                                        }
+                                        else if(reverseNestedResponseProperty.buckets){
                                             retVal[reverseNestedResponseKey] = createBuckets(reverseNestedResponseProperty.buckets);
                                             //this gets a little complicated because reverse-nested then renested subdocuments are .. complicated (because the extra aggs for nesting throws things off).
-                                        }else if (reverseNestedResponseProperty!="doc_count" && reverseNestedResponseProperty[reverseNestedResponseKey] && reverseNestedResponseProperty[reverseNestedResponseKey].buckets){
+                                        }else if (reverseNestedResponseProperty[reverseNestedResponseKey] && reverseNestedResponseProperty[reverseNestedResponseKey].buckets){
                                             retVal[reverseNestedResponseKey] = createBuckets(reverseNestedResponseProperty[reverseNestedResponseKey].buckets);
 
                                             //this gets a little MORE complicated because of reverse-nested then renested top_hits aggs
-                                        }else if (reverseNestedResponseProperty!="doc_count" && reverseNestedResponseProperty.hits && reverseNestedResponseProperty.hits.hits){
+                                        }else if (reverseNestedResponseProperty.hits && reverseNestedResponseProperty.hits.hits){
                                             retVal[reverseNestedResponseKey] = _.map(reverseNestedResponseProperty.hits.hits,function(esReponseObj){
                                               return esReponseObj["_source"];
                                             });
+                                            //stats & extended_stats aggs
+                                        }else if (reverseNestedResponseProperty){
+                                            //This means it's the result of a nested stats or extended stats query.
+                                            if(reverseNestedResponseProperty[reverseNestedResponseKey]){
+                                                retVal[reverseNestedResponseKey] = reverseNestedResponseProperty[reverseNestedResponseKey];
+                                            }else{
+                                                retVal[reverseNestedResponseKey] = reverseNestedResponseProperty;
+                                            }
                                         }
 
                                     });
@@ -232,15 +255,26 @@ function ElasticFortune (fortune_app,es_url,index,type,collectionNameLookup) {
                             }
                         };
                         _.forIn(es_results.aggregations, function (value, key) {
-                            if (value["buckets"])
+                            if (value["buckets"]){
+                                //simple terms agg
                                 meta.aggregations[key] = createBuckets(value.buckets);
+                            }
                             else if (value[key] && value[key]["buckets"]) {
+                                //nested terms agg
                                 meta.aggregations[key] = createBuckets(value[key]["buckets"]);
                             } else if (value.hits && value.hits.hits) {
                                 //top_hits aggs result from totally un-nested query
                                 meta.aggregations[key] = _.map(value.hits.hits, function (esReponseObj) {
                                     return esReponseObj["_source"];
                                 });
+                            }else if (value){
+                                //stats & extended_stats aggs
+                                if(value[key]){
+                                    //This means it's the result of a nested stats or extended stats query.
+                                    meta.aggregations[key] = value[key];
+                                }else{
+                                    meta.aggregations[key] = value;
+                                }
                             }
                         });
                         return meta;
@@ -309,7 +343,9 @@ function ElasticFortune (fortune_app,es_url,index,type,collectionNameLookup) {
 
 var requiredAggOptions = {
     top_hits:["type","include"],
-    terms:["type","field"]
+    terms:["type","field"],
+    stats:["type","field"],
+    extended_stats:["type","field"]
 }
 
 function assertAggregationObjectHasRequiredOptions(aggregationObject){
@@ -476,7 +512,7 @@ ElasticFortune.prototype.getEsQueryBody = function (predicates, nestedPredicates
         var isAlongExpandableQueryLine = function(query){
             var retVal = false;
             _.each(query.nested.query.bool.must, function (innerQuery, mustI) {
-                var matchObj = innerQuery.nested.query.match;
+                var matchObj = innerQuery.match|| innerQuery.nested.query.match;
                 var values = _.values(matchObj);
                 if (_.isArray(values[0])) {
                     retVal = true;
@@ -586,34 +622,41 @@ ElasticFortune.prototype.getEsQueryBody = function (predicates, nestedPredicates
 
     allPredicateFragments.length>0 && (composedESQuery.query.filtered.filter=filter);
 
+    function addInDefaultAggregationQuery(aggs,aggregationObject,extraShallowValues){
+        //Todo: stop crash if no field is provided, or crash more elegantly.
+        var isDeepAggregation = (aggregationObject.field.lastIndexOf(".")>0);
+        var path = aggregationObject.field.substr(0, aggregationObject.field.lastIndexOf("."));
+        var shallowAggs = {};
+        shallowAggs[aggregationObject.type] =  {
+            field: aggregationObject.field
+        };
+        _.each(extraShallowValues||[],function(extraShallowValue,extraShallowKey){
+            shallowAggs[aggregationObject.type][extraShallowKey]=extraShallowValue;
+        });
+
+        //deep work should be repeated.
+        if(isDeepAggregation){
+            aggs[aggregationObject.name]={
+                nested: {
+                    path: path
+                },
+                aggs:{}
+            }
+            aggs[aggregationObject.name].aggs[aggregationObject.name]=shallowAggs;
+        }else{
+            aggs[aggregationObject.name] = shallowAggs;
+        }
+        return isDeepAggregation;
+    }
+
     function getAggregationQuery(aggregationObjects){
         var aggs = {};
         _.each(aggregationObjects || [],function(aggregationObject){
             assertAggregationObjectHasRequiredOptions(aggregationObject);
             var isDeepAggregation = false;
             if(aggregationObject.type=="terms"){
-                //Todo: stop crash if no field is provided, or crash more elegantly.
-                isDeepAggregation = (aggregationObject.field.lastIndexOf(".")>0);
-                var path = aggregationObject.field.substr(0, aggregationObject.field.lastIndexOf("."));
-                var shallowTermsAggs = {
-                    terms: {
-                        field: aggregationObject.field,
-                        size:aggregationObject.limit || DEFAULT_AGGREGATION_LIMIT
-                    }
-                };
-                //deep work should be repeated.
-                if(isDeepAggregation){
-                    aggs[aggregationObject.name]={
-                        nested: {
-                            path: path
-                        },
-                        aggs:{}
-                    }
-                    aggs[aggregationObject.name].aggs[aggregationObject.name]=shallowTermsAggs;
-                }else{
-                    aggs[aggregationObject.name] = shallowTermsAggs;
-                }
-            }else if (aggregationObject.type="top_hits"){
+                isDeepAggregation = addInDefaultAggregationQuery(aggs,aggregationObject, {size: aggregationObject.limit || DEFAULT_AGGREGATION_LIMIT});
+            }else if (aggregationObject.type=="top_hits"){
                 var shallowTermsAggs = {
                     top_hits: {
                         size:aggregationObject.limit?Number(aggregationObject.limit) : DEFAULT_TOP_HITS_AGGREGATION_LIMIT
@@ -636,6 +679,8 @@ ElasticFortune.prototype.getEsQueryBody = function (predicates, nestedPredicates
                 }
                 aggs[aggregationObject.name] = shallowTermsAggs;
 
+            }else if (aggregationObject.type=="stats" || aggregationObject.type=="extended_stats"){
+                isDeepAggregation = addInDefaultAggregationQuery(aggs,aggregationObject);
             }
 
             if(aggregationObject.aggregations){
