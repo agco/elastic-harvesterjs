@@ -512,7 +512,7 @@ ElasticFortune.prototype.getEsQueryBody = function (predicates, nestedPredicates
         var isAlongExpandableQueryLine = function(query){
             var retVal = false;
             _.each(query.nested.query.bool.must, function (innerQuery, mustI) {
-                var matchObj = innerQuery.nested.query.match;
+                var matchObj = innerQuery.match|| innerQuery.nested.query.match;
                 var values = _.values(matchObj);
                 if (_.isArray(values[0])) {
                     retVal = true;
