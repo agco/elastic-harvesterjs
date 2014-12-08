@@ -859,6 +859,7 @@ ElasticFortune.prototype.expandAndSync = function (models) {
 //sync: will push model to elastic search WITHOUT expanding any links.
 ElasticFortune.prototype.sync = function(model){
     var esBody = JSON.stringify(model);
+    var _this = this;
     var options = {uri: this.es_url + '/'+this.index+'/'+this.type+'/' + model.id, body: esBody,pool:postPool};
 
     return new RSVP.Promise(function (resolve, reject) {
@@ -874,7 +875,7 @@ ElasticFortune.prototype.sync = function(model){
         });
     })
     .catch(function (error) {
-        throw new Error("Dealer was unable to be added to the elastic search index. This likely means that one or more links were unable to be found.");
+        throw new Error(_this.type+ " "+ (model.id?model.id:"")+ " was unable to be added to the elastic search index. This likely means that one or more links were unable to be found.");
     });
 };
 
