@@ -1,7 +1,7 @@
 {
   "name": "elastic-fortune",
   "description": "Connects Elastic Search, fortune.js & mongodb in a jiff!",
-  "version": "0.0.6",
+  "version": "0.0.7",
   "keywords": [
       "elasticsearch",
       "elastic-search",
