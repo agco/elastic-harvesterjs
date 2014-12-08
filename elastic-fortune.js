@@ -45,7 +45,7 @@ function ElasticFortune (fortune_app,es_url,index,type,collectionNameLookup) {
             if (_s.startsWith(key, "geo_distance.")) {
                 geoPredicate[key.substr(13)]=req.query[key];
                 //TODO: return error if geoPredicate distance is not supplied with a unit.
-            } else if (_s.startsWith(key, "links.")) {
+            } else if (!reservedQueryTermLookup[key] && Util.hasDotNesting(key)){
                 nestedPredicates.push([key, req.query[key]]);
             }
             else if (!reservedQueryTermLookup[key]){
@@ -327,17 +327,6 @@ var esDistanceFunctionLookup={
     m: "arcDistance",
     meters:"arcDistance"
 }
-/*
-    +++ Add support for changing collections.
- //Plan is:
- + 1) Figure out exactly how you want to auto-update when other collections change.
-        -
- + 2) Create Internal Search apparatus that allows us to figure out which dealers need to be updated when other collections change.
- 3) Get each entire documents we need & strip them back to be the simple documents that went in.
- - 4) Expand links for the simple documents & put them back in ES, at the same ids.
- 5) Test by posting an update to country name & searching for all dealers with that country name.
-
- */
 
 //Transforms an expanded ES source object to an unexpanded object
 function unexpandEntity(sourceObject,includeFields){
@@ -696,7 +685,7 @@ ElasticFortune.prototype.getEsQueryBody = function (predicates, nestedPredicates
             var sortDirection = (sortParam[0]!="-"?"asc":"desc");
             sortDirection=="desc" && (sortParam = sortParam.substr(1));
 
-            if (_s.startsWith(sortParam, "links.")) {
+            if (Util.hasDotNesting(sortParam)){
                 //nested sort - not sure if this needs to be implemented.
             }else if (sortParam=="distance"){
                 if(geoPredicateExists) {
@@ -859,6 +848,7 @@ ElasticFortune.prototype.expandAndSync = function (models) {
 //sync: will push model to elastic search WITHOUT expanding any links.
 ElasticFortune.prototype.sync = function(model){
     var esBody = JSON.stringify(model);
+    var _this = this;
     var options = {uri: this.es_url + '/'+this.index+'/'+this.type+'/' + model.id, body: esBody,pool:postPool};
 
     return new RSVP.Promise(function (resolve, reject) {
@@ -874,7 +864,7 @@ ElasticFortune.prototype.sync = function(model){
         });
     })
     .catch(function (error) {
-        throw new Error("Dealer was unable to be added to the elastic search index. This likely means that one or more links were unable to be found.");
+        throw new Error(_this.type+ " "+ (model.id?model.id:"")+ " was unable to be added to the elastic search index. This likely means that one or more links were unable to be found.");
     });
 };
 

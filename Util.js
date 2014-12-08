@@ -84,6 +84,13 @@ function toObjectLookup(array){
     return retVal;
 }
 
+//Returns true if string a dot in it at any position other than the first and last ones.
+function hasDotNesting(string) {
+    var loc = string.indexOf(".");
+    return  (loc!= -1) && (loc!=0) && (loc!=string.length-1);
+}
+
+module.exports.hasDotNesting = hasDotNesting;
 module.exports.toObjectLookup = toObjectLookup;
 module.exports.assertAsDefined = assertAsDefined;
 module.exports.getProperty = getProperty;
