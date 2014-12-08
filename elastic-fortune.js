@@ -327,17 +327,6 @@ var esDistanceFunctionLookup={
     m: "arcDistance",
     meters:"arcDistance"
 }
-/*
-    +++ Add support for changing collections.
- //Plan is:
- + 1) Figure out exactly how you want to auto-update when other collections change.
-        -
- + 2) Create Internal Search apparatus that allows us to figure out which dealers need to be updated when other collections change.
- 3) Get each entire documents we need & strip them back to be the simple documents that went in.
- - 4) Expand links for the simple documents & put them back in ES, at the same ids.
- 5) Test by posting an update to country name & searching for all dealers with that country name.
-
- */
 
 //Transforms an expanded ES source object to an unexpanded object
 function unexpandEntity(sourceObject,includeFields){
