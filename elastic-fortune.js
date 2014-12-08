@@ -45,7 +45,7 @@ function ElasticFortune (fortune_app,es_url,index,type,collectionNameLookup) {
             if (_s.startsWith(key, "geo_distance.")) {
                 geoPredicate[key.substr(13)]=req.query[key];
                 //TODO: return error if geoPredicate distance is not supplied with a unit.
-            } else if (_s.startsWith(key, "links.")) {
+            } else if (!reservedQueryTermLookup[key] && Util.hasDotNesting(key)){
                 nestedPredicates.push([key, req.query[key]]);
             }
             else if (!reservedQueryTermLookup[key]){
@@ -696,7 +696,7 @@ ElasticFortune.prototype.getEsQueryBody = function (predicates, nestedPredicates
             var sortDirection = (sortParam[0]!="-"?"asc":"desc");
             sortDirection=="desc" && (sortParam = sortParam.substr(1));
 
-            if (_s.startsWith(sortParam, "links.")) {
+            if (Util.hasDotNesting(sortParam)){
                 //nested sort - not sure if this needs to be implemented.
             }else if (sortParam=="distance"){
                 if(geoPredicateExists) {
