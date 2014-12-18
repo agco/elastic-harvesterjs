@@ -90,6 +90,24 @@ function hasDotNesting(string) {
     return  (loc!= -1) && (loc!=0) && (loc!=string.length-1);
 }
 
+function isDefinedAndNotNull(val) {
+    return (!_.isUndefined(val) && !_.isNull(val))
+}
+
+//Returns value if it's defined and not null, otherwise returns default;
+function getValueWithDefault(value,_default){
+    if(isDefinedAndNotNull(value)){return value}
+    return _default;
+}
+
+//Takes a string like "links.equipment.id",2,"." and returns "id"
+function substrAtNthOccurence(string,start,delimiter){
+    var delimiter = getValueWithDefault(delimiter,"."),
+        start = getValueWithDefault(start,1),
+        tokens = string.split(delimiter).slice(start);
+    return tokens.join(delimiter);
+}
+
 module.exports.hasDotNesting = hasDotNesting;
 module.exports.toObjectLookup = toObjectLookup;
 module.exports.assertAsDefined = assertAsDefined;
