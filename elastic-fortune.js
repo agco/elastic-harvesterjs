@@ -172,6 +172,13 @@ function ElasticFortune (fortune_app,es_url,index,type,collectionNameLookup) {
             return esReponseObj["_source"];
         });
     }
+    function getTopHitsResult(aggResponse){
+      return _.map(aggResponse.hits.hits,function(esReponseObj){
+        //return esReponseObj["_source"];
+        return unexpandEntity(esReponseObj["_source"]);
+
+      });
+    }
 
     function sendSearchResponse(es_results, res, includes,fields) {
         var initialPromise = RSVP.resolve();
@@ -202,9 +209,7 @@ function ElasticFortune (fortune_app,es_url,index,type,collectionNameLookup) {
 
                                 }else if (aggResponse.hits && aggResponse.hits.hits){
                                     //top_hits aggs result from nested query w/o reverse nesting.
-                                    retVal[responseKey] = _.map(aggResponse.hits.hits,function(esReponseObj){
-                                        return esReponseObj["_source"];
-                                    });
+                                    retVal[responseKey] = getTopHitsResult(aggResponse);
                                     //to combine nested aggs w others, you have to un-nest them, & this takes up an aggregation-space.
                                 }else if (responseKey!="reverse_nesting" && aggResponse){ //stats & extended_stats aggs
                                     //This means it's the result of a nested stats or extended stats query.
@@ -228,9 +233,7 @@ function ElasticFortune (fortune_app,es_url,index,type,collectionNameLookup) {
 
                                             //this gets a little MORE complicated because of reverse-nested then renested top_hits aggs
                                         }else if (reverseNestedResponseProperty.hits && reverseNestedResponseProperty.hits.hits){
-                                            retVal[reverseNestedResponseKey] = _.map(reverseNestedResponseProperty.hits.hits,function(esReponseObj){
-                                              return esReponseObj["_source"];
-                                            });
+                                            retVal[reverseNestedResponseKey] = getTopHitsResult(reverseNestedResponseProperty);
                                             //stats & extended_stats aggs
                                         }else if (reverseNestedResponseProperty){
                                             //This means it's the result of a nested stats or extended stats query.
@@ -264,9 +267,7 @@ function ElasticFortune (fortune_app,es_url,index,type,collectionNameLookup) {
                                 meta.aggregations[key] = createBuckets(value[key]["buckets"]);
                             } else if (value.hits && value.hits.hits) {
                                 //top_hits aggs result from totally un-nested query
-                                meta.aggregations[key] = _.map(value.hits.hits, function (esReponseObj) {
-                                    return esReponseObj["_source"];
-                                });
+                                meta.aggregations[key] = getTopHitsResult(value);
                             }else if (value){
                                 //stats & extended_stats aggs
                                 if(value[key]){
@@ -342,7 +343,7 @@ function ElasticFortune (fortune_app,es_url,index,type,collectionNameLookup) {
 }
 
 var requiredAggOptions = {
-    top_hits:["type","include"],
+    top_hits:["type"],
     terms:["type","field"],
     stats:["type","field"],
     extended_stats:["type","field"]
@@ -1002,7 +1003,7 @@ ElasticFortune.prototype.initializeMapping=function(mapping){
     return requestAsync({uri:es_resource, method: 'PUT', body:reqBody}).then(function(response){
         var body = JSON.parse(response[1]);
         if(body.error){
-            throw new Error(body.error);
+            throw new Error(JSON.stringify(body));
         }
         return body;
     });

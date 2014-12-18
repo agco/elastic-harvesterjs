@@ -1,7 +1,7 @@
 Extra Prerequisites
 ---------------
 Requires: 
-"fortune-agco": "~0.2.9",
+"fortune-agco": "~0.2.10",
 "fortune-mongodb-agco": "~0.2.4",
 
 But they aren't direct dependencies, so they aren't listed in package.json; however you're required to be using at least those versions of those packages
@@ -32,14 +32,14 @@ var Elastic_Search_URL = process.env.BONSAI_URL || "http://127.0.0.1:9200";
 var Elastic_Search_Index = "dealer-api";
 var type = "dealers";
 ```
-#Create elastic search endpoint
+#Create elastic search endpoint (NB: api changed in v0.0.6)
 ```js
 var dealerSearch = new ElasticFortune(fortune_app, Elastic_Search_URL,Elastic_Search_Index, type, collectionNameLookup);
 fortune_app.router.get('/dealers/search', dealerSearch.route);
 //Required to make the elastic search endpoint work properly
-fortune_app.setOnRouteCreated("dealer",function(route){
-    dealerSearch.setFortuneRoute(route);
-},this);
+fortune_app.onRouteCreated('dealer').then(function(fortuneRoute){
+    dealerSearch.setFortuneRoute(fortuneRoute);
+});
 ```
 
 
@@ -257,3 +257,8 @@ module.exports= {
     }
 }
 ```
+
+##Allowed aggregation types
+stats & extended_stats (v0.0.8)
+terms
+top_hits
