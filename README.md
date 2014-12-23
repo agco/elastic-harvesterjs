@@ -4,7 +4,7 @@ Elastic-Fortune is a Nodejs implementation of the [JSON API Search Profile](http
 
 This library ties together Fortunejs and Elasticsearch to offer the required [linked resource filtering and aggregation](https://github.com/agco-adm/json-api-search-profile/blob/master/public/profile.md) features.
 
-On top of that it also provides a number of helper functions to synchronize Fortunejs / Mongodb resources with an Elasticsearch backend.
+Apart from that it also provides a number of helper functions to synchronize Fortunejs / Mongodb resources with an Elasticsearch backend.
 
 
 ## Features
@@ -14,7 +14,8 @@ On top of that it also provides a number of helper functions to synchronize Fort
 
 ## Roadmap
 
-- Top_hits aggregation, inclusion and sparse fieldsets features interop : [#1](https://github.com/agco-adm/elastic-fortune/issues/1)
+- Top_hits aggregation interop with JSON API features, inclusion and sparse fieldsets [#1](https://github.com/agco-adm/elastic-fortune/issues/1)
+- More aggregations :
 - Reliable Fortunejs/Mongodb - Elasticsearch data synchronisation ( oplog based )
 - Support adaptive queries, use the ES mapping file to figure out whether to use parent/child or nested queries / aggregations
 - Use Fortunejs associations + ES mapping file to assemble data graph rather than having to explicitly specify them through 'collectionNameLookup'
