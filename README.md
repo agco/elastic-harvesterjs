@@ -7,13 +7,28 @@ This library ties together Fortunejs and Elasticsearch to offer the required [li
 On top of that it also provides a number of helper functions to synchronize Fortunejs / Mongodb resources with an Elasticsearch backend.
 
 
-### Dependencies
+## Features
+
+- Aggregations : stats, extended_stats, top_hits, terms
+- Primary and Linked resource filtering interop
+
+## Roadmap
+
+- Top_hits aggregation, inclusion and sparse fieldsets features interop : [#1](https://github.com/agco-adm/elastic-fortune/issues/1)
+- Reliable Fortunejs/Mongodb - Elasticsearch data synchronisation ( oplog based )
+- Support adaptive queries, use the ES mapping file to figure out whether to use parent/child or nested queries / aggregations
+- Use Fortunejs associations + ES mapping file to assemble data graph rather than having to explicitly specify them through 'collectionNameLookup'
+- Use Fortunejs associations + ES mapping file to discover which Mongodb collections have to be synced rather than having to register them explicitly
+- Bootstrap Elasticsearch with existing data from Fortunjs resources through REST endpoint
+- Bootstrap Elasticsearch mapping file through REST endpoint
+
+## Dependencies
  
 "fortune-agco": "*",
 "fortune-mongodb-agco": "*",
 
 
-### Usage
+## Usage
 
 ```js
 //Hash of properties to related mongo collections
@@ -177,8 +192,3 @@ module.exports= {
     }
 }
 ```
-
-### Allowed aggregation types
-stats & extended_stats (v0.0.8)
-terms
-top_hits
