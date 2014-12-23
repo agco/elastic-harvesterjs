@@ -15,7 +15,7 @@ Apart from that it also provides a number of helper functions to synchronize For
 ## Roadmap
 
 - Top_hits aggregation interop with JSON API features, inclusion and sparse fieldsets [#1](https://github.com/agco-adm/elastic-fortune/issues/1)
-- More aggregations :
+- More aggregations : min, max, sum, avg, percentiles, percentile_ranks, cardinality, geo_bounds, significant_terms, range, date_range, filter, filters, missing, histogram, date_histogram, geo_distance
 - Reliable Fortunejs/Mongodb - Elasticsearch data synchronisation ( oplog based )
 - Support adaptive queries, use the ES mapping file to figure out whether to use parent/child or nested queries / aggregations
 - Use Fortunejs associations + ES mapping file to assemble data graph rather than having to explicitly specify them through 'collectionNameLookup'
