@@ -3,6 +3,7 @@
 Elastic-Fortune is a Nodejs implementation of the [JSON API Search Profile](https://github.com/agco-adm/json-api-search-profile).
 
 This library ties together Fortunejs and Elasticsearch to offer the required 'linked resource filtering' and 'aggregation' features.
+
 On top of that it also provides a number of helper functions to synchronize Fortunejs / Mongodb resources with an Elasticsearch backend.
 
 
@@ -29,7 +30,7 @@ var collectionNameLookup = {
     "business_hours": "business_hours",
     "current_offerings": "offering",
     "dealer_misc": "dealers_misc"
-}
+}collectionNameLookup
 var Elastic_Search_URL = process.env.BONSAI_URL || "http://127.0.0.1:9200";
 var Elastic_Search_Index = "dealer-api";
 var type = "dealers";
