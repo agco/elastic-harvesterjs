@@ -25,8 +25,8 @@ Apart from that it also provides a number of helper functions to synchronize For
 
 ## Dependencies
  
-"fortune-agco": "*",
-"fortune-mongodb-agco": "*",
+"fortune-agco": "\*",  
+"fortune-mongodb-agco": "\*",
 
 
 ## Usage
