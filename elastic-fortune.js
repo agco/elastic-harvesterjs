@@ -66,7 +66,7 @@ function ElasticFortune (fortune_app,es_url,index,type,collectionNameLookup) {
                 } else {
                     req.query["aggregations"] = oldfield;
                 }
-                req.query[oldfield+".field"]=oldfield;
+                req.query[oldfield+".property"]=oldfield;
 
             });
         }
@@ -79,11 +79,10 @@ function ElasticFortune (fortune_app,es_url,index,type,collectionNameLookup) {
     };
 
     var permittedAggOptions = {
-        top_hits:["type","sort","limit","include","fields"],//fields replaces include
-        terms:["type","order","field","aggregations","property"], //property replaces "field"
-        stats:["type","field"],
-        extended_stats:["type","field"]
-
+        top_hits:["type","sort","limit","fields"],
+        terms:["type","order","aggregations","property"],
+        stats:["type","property"],
+        extended_stats:["type","property"]
     }
 
     function setValueIfExists(obj,property,val,fn){
@@ -147,17 +146,11 @@ function ElasticFortune (fortune_app,es_url,index,type,collectionNameLookup) {
             var aggregation = {};
 
             setValueIfExists(aggregation,"name",agg,assertIsNotArray);
-            //backwards compatibility:supports "field" param to work as a "property" param. (for terms)
-            setValueIfExists(aggregation,"property",query[agg+".field"],assertIsNotArray);
             setValueIfExists(aggregation,"property",query[agg+".property"],assertIsNotArray);
-
             setValueIfExists(aggregation,"type",query[agg+".type"] || "terms",assertIsNotArray);
             setValueIfExists(aggregation,"order",query[agg+".order"],assertIsNotArray);
             setValueIfExists(aggregation,"sort",query[agg+".sort"],assertIsNotArray);
             setValueIfExists(aggregation,"limit",query[agg+".limit"],assertIsNotArray);
-
-            //backwards compatibility:supports "include" param to work as a "fields" param.(for top_hits)
-            setValueIfExists(aggregation,"fields",query[agg+".include"],assertIsNotArray);
             setValueIfExists(aggregation,"fields",query[agg+".fields"],assertIsNotArray);
 
 
