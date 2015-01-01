@@ -11,6 +11,9 @@
       "fortunejs",
       "fortune.js"
   ],
+  "scripts": {
+    "test": "node test/runner mongodb://127.0.0.1:27017/testDB"
+  },
   "dependencies": {
     "lodash": "~2.4.1",
     "mongoose": "~3.8.12",
@@ -19,7 +22,14 @@
     "rsvp": "~3.0.14",
     "bluebird": "~2.3.2"
   },
-  "devDependencies": {},
+
+  "devDependencies": {
+      "fortune-agco":"0.2.10",
+      "mocha": "~1.20.1",
+      "should": "~4.0.4",
+      "supertest": "~0.13.0",
+      "i": "~0.3.2"
+  },
   "engines": {
     "node": ">=0.10"
   },

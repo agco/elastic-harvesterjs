@@ -79,8 +79,8 @@ function ElasticFortune (fortune_app,es_url,index,type,collectionNameLookup) {
     };
 
     var permittedAggOptions = {
-        top_hits:["type","sort","limit","include"],
-        terms:["type","order","field","aggregations"],
+        top_hits:["type","sort","limit","include","fields"],//fields replaces include
+        terms:["type","order","field","aggregations","property"], //property replaces "field"
         stats:["type","field"],
         extended_stats:["type","field"]
 
@@ -147,12 +147,19 @@ function ElasticFortune (fortune_app,es_url,index,type,collectionNameLookup) {
             var aggregation = {};
 
             setValueIfExists(aggregation,"name",agg,assertIsNotArray);
-            setValueIfExists(aggregation,"field",query[agg+".field"],assertIsNotArray);
+            //backwards compatibility:supports "field" param to work as a "property" param. (for terms)
+            setValueIfExists(aggregation,"property",query[agg+".field"],assertIsNotArray);
+            setValueIfExists(aggregation,"property",query[agg+".property"],assertIsNotArray);
+
             setValueIfExists(aggregation,"type",query[agg+".type"] || "terms",assertIsNotArray);
             setValueIfExists(aggregation,"order",query[agg+".order"],assertIsNotArray);
             setValueIfExists(aggregation,"sort",query[agg+".sort"],assertIsNotArray);
             setValueIfExists(aggregation,"limit",query[agg+".limit"],assertIsNotArray);
-            setValueIfExists(aggregation,"include",query[agg+".include"],assertIsNotArray);
+
+            //backwards compatibility:supports "include" param to work as a "fields" param.(for top_hits)
+            setValueIfExists(aggregation,"fields",query[agg+".include"],assertIsNotArray);
+            setValueIfExists(aggregation,"fields",query[agg+".fields"],assertIsNotArray);
+
 
             if( query[agg+".aggregations"]){//TODO: also, if type allows nesting (aka, type is a bucket aggregation)
                 aggregation.aggregations = getAggregationObjects(query,agg+".aggregations");
@@ -344,9 +351,9 @@ function ElasticFortune (fortune_app,es_url,index,type,collectionNameLookup) {
 
 var requiredAggOptions = {
     top_hits:["type"],
-    terms:["type","field"],
-    stats:["type","field"],
-    extended_stats:["type","field"]
+    terms:["type","property"],
+    stats:["type","property"],
+    extended_stats:["type","property"]
 }
 
 function assertAggregationObjectHasRequiredOptions(aggregationObject){
@@ -625,11 +632,11 @@ ElasticFortune.prototype.getEsQueryBody = function (predicates, nestedPredicates
 
     function addInDefaultAggregationQuery(aggs,aggregationObject,extraShallowValues){
         //Todo: stop crash if no field is provided, or crash more elegantly.
-        var isDeepAggregation = (aggregationObject.field.lastIndexOf(".")>0);
-        var path = aggregationObject.field.substr(0, aggregationObject.field.lastIndexOf("."));
+        var isDeepAggregation = (aggregationObject.property.lastIndexOf(".")>0);
+        var path = aggregationObject.property.substr(0, aggregationObject.property.lastIndexOf("."));
         var shallowAggs = {};
         shallowAggs[aggregationObject.type] =  {
-            field: aggregationObject.field
+            field: aggregationObject.property
         };
         _.each(extraShallowValues||[],function(extraShallowValue,extraShallowKey){
             shallowAggs[aggregationObject.type][extraShallowKey]=extraShallowValue;
@@ -674,9 +681,9 @@ ElasticFortune.prototype.getEsQueryBody = function (predicates, nestedPredicates
                         shallowTermsAggs.top_hits.sort.push(sortTerm);
                     });
                 }
-                if(aggregationObject.include){
+                if(aggregationObject.fields){
                     shallowTermsAggs.top_hits["_source"]={};
-                    shallowTermsAggs.top_hits["_source"]["include"] = aggregationObject.include.split(',');
+                    shallowTermsAggs.top_hits["_source"]["include"] = aggregationObject.fields.split(',');
                 }
                 aggs[aggregationObject.name] = shallowTermsAggs;
 
