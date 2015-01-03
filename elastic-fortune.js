@@ -4,6 +4,7 @@ var bluebird = require('bluebird');
 var requestAsync = bluebird.promisify(require('request'));
 
 var _s = require('underscore.string');
+var inflect= require('i')();
 var _ = require('lodash');
 var RSVP = require('rsvp');
 var Util =  require("./Util");
@@ -66,7 +67,7 @@ function ElasticFortune (fortune_app,es_url,index,type,collectionNameLookup) {
                 } else {
                     req.query["aggregations"] = oldfield;
                 }
-                req.query[oldfield+".field"]=oldfield;
+                req.query[oldfield+".property"]=oldfield;
 
             });
         }
@@ -75,15 +76,14 @@ function ElasticFortune (fortune_app,es_url,index,type,collectionNameLookup) {
 
 
         var esQuery = _this.getEsQueryBody(predicates, nestedPredicates, geoPredicate,aggregationObjects, sortParams);
-        esSearch(esQuery,req,res,next);
+        esSearch(esQuery,aggregationObjects,req,res,next);
     };
 
     var permittedAggOptions = {
-        top_hits:["type","sort","limit","include"],
-        terms:["type","order","field","aggregations"],
-        stats:["type","field"],
-        extended_stats:["type","field"]
-
+        top_hits:["type","sort","limit","fields","include"],
+        terms:["type","order","aggregations","property"],
+        stats:["type","property"],
+        extended_stats:["type","property"]
     }
 
     function setValueIfExists(obj,property,val,fn){
@@ -147,12 +147,14 @@ function ElasticFortune (fortune_app,es_url,index,type,collectionNameLookup) {
             var aggregation = {};
 
             setValueIfExists(aggregation,"name",agg,assertIsNotArray);
-            setValueIfExists(aggregation,"field",query[agg+".field"],assertIsNotArray);
+            setValueIfExists(aggregation,"property",query[agg+".property"],assertIsNotArray);
             setValueIfExists(aggregation,"type",query[agg+".type"] || "terms",assertIsNotArray);
             setValueIfExists(aggregation,"order",query[agg+".order"],assertIsNotArray);
             setValueIfExists(aggregation,"sort",query[agg+".sort"],assertIsNotArray);
             setValueIfExists(aggregation,"limit",query[agg+".limit"],assertIsNotArray);
+            setValueIfExists(aggregation,"fields",query[agg+".fields"],assertIsNotArray);
             setValueIfExists(aggregation,"include",query[agg+".include"],assertIsNotArray);
+
 
             if( query[agg+".aggregations"]){//TODO: also, if type allows nesting (aka, type is a bucket aggregation)
                 aggregation.aggregations = getAggregationObjects(query,agg+".aggregations");
@@ -172,15 +174,71 @@ function ElasticFortune (fortune_app,es_url,index,type,collectionNameLookup) {
             return esReponseObj["_source"];
         });
     }
-    function getTopHitsResult(aggResponse){
-      return _.map(aggResponse.hits.hits,function(esReponseObj){
-        //return esReponseObj["_source"];
-        return unexpandEntity(esReponseObj["_source"]);
+    //Note that this is not currently named well - it also provides the "includes" functionality to top_hits.
+    function getTopHitsResult(aggResponse,aggName,esResponse,aggregationObjects){
 
-      });
+        var aggLookup = {};
+        (function getAggLookup(aggLookup,aggregationObjects){
+            _.each(aggregationObjects,function(aggObj){
+                aggLookup[aggObj.name]=aggObj;
+                aggObj.aggregations && getAggLookup(aggLookup,aggObj.aggregations);
+            });
+        })(aggLookup,aggregationObjects);
+
+
+        var linked = {}//keeps track of all linked objects. type->id->true
+        var typeLookup = {}
+        //dedupes already-linked entities.
+        if(aggLookup[aggName] && aggLookup[aggName].include) {
+
+            _.each(aggLookup[aggName].include.split(','), function (linkProperty) {
+                if (_this.collectionNameLookup[linkProperty]) {
+                    var type = inflect.pluralize(_this.collectionNameLookup[linkProperty]);
+                    typeLookup[linkProperty]=type;
+
+                    esResponse.linked && _.each(esResponse.linked[type]||[],function(resource,collection){
+                        linked[type]=linked[type]||{};
+                        linked[type][resource.id]=true;
+                    })
+                }
+
+            });
+        }
+        return _.map(aggResponse.hits.hits,function(esReponseObj){
+            if(aggLookup[aggName] && aggLookup[aggName].include){
+                _.each(aggLookup[aggName].include.split(','), function (linkProperty) {
+                    if (typeLookup[linkProperty]) {
+                        var type = typeLookup[linkProperty];
+
+                        //if this isn't already linked, link it.
+                        //TODO: links may be an array of objects, so treat it that way at all times.
+                        var hasLinks = !!(esReponseObj._source.links) && !!(esReponseObj._source.links[linkProperty]);
+                        if(hasLinks){
+                            var entitiesToInclude = [].concat(unexpandSubentity(esReponseObj._source.links[linkProperty]));
+
+                            _.each(entitiesToInclude,function(entityToInclude){
+                                var entityIsAlreadyIncluded = !!(linked[type]) && !!(linked[type][entityToInclude.id]);
+                                if (!entityIsAlreadyIncluded) {
+                                    esResponse.linked = esResponse.linked || {};
+                                    esResponse.linked[type] = esResponse.linked[type] || [];
+
+                                    esResponse.linked[type] = esResponse.linked[type].concat(entityToInclude);
+                                    linked[type] = linked[type] || {};
+                                    linked[type][entityToInclude.id] = true;
+                                }
+                            })
+                        }
+                    } else {
+                        console.warn(linkProperty + " is not in collectionNameLookup. " + linkProperty + " was either incorrectly specified by the end-user, or dev failed to include the relevant key in the lookup provided to initialize elastic-fortune.");
+                    }
+                })
+            }
+            return unexpandEntity(esReponseObj["_source"]);
+
+        });
     }
 
-    function sendSearchResponse(es_results, res, includes,fields) {
+    function sendSearchResponse(es_results, res, includes,fields,aggregationObjects) {
         var initialPromise = RSVP.resolve();
         var padding = undefined;
         (process.env.NODE_ENV!="production") && (padding = 2);
@@ -209,7 +267,7 @@ function ElasticFortune (fortune_app,es_url,index,type,collectionNameLookup) {
 
                                 }else if (aggResponse.hits && aggResponse.hits.hits){
                                     //top_hits aggs result from nested query w/o reverse nesting.
-                                    retVal[responseKey] = getTopHitsResult(aggResponse);
+                                    retVal[responseKey] = getTopHitsResult(aggResponse,responseKey,esResponse,aggregationObjects);
                                     //to combine nested aggs w others, you have to un-nest them, & this takes up an aggregation-space.
                                 }else if (responseKey!="reverse_nesting" && aggResponse){ //stats & extended_stats aggs
                                     //This means it's the result of a nested stats or extended stats query.
@@ -233,7 +291,8 @@ function ElasticFortune (fortune_app,es_url,index,type,collectionNameLookup) {
 
                                             //this gets a little MORE complicated because of reverse-nested then renested top_hits aggs
                                         }else if (reverseNestedResponseProperty.hits && reverseNestedResponseProperty.hits.hits){
-                                            retVal[reverseNestedResponseKey] = getTopHitsResult(reverseNestedResponseProperty);
+                                            retVal[reverseNestedResponseKey] = getTopHitsResult(reverseNestedResponseProperty,reverseNestedResponseKey,esResponse,aggregationObjects);
+
                                             //stats & extended_stats aggs
                                         }else if (reverseNestedResponseProperty){
                                             //This means it's the result of a nested stats or extended stats query.
@@ -252,7 +311,7 @@ function ElasticFortune (fortune_app,es_url,index,type,collectionNameLookup) {
                         });
                     };
 
-                    var createAggregations = function (es_results) {
+                    var createAggregations = function (es_results,esResponse,aggregationObjects) {
                         var meta = {
                             aggregations: {
                             }
@@ -267,7 +326,8 @@ function ElasticFortune (fortune_app,es_url,index,type,collectionNameLookup) {
                                 meta.aggregations[key] = createBuckets(value[key]["buckets"]);
                             } else if (value.hits && value.hits.hits) {
                                 //top_hits aggs result from totally un-nested query
-                                meta.aggregations[key] = getTopHitsResult(value);
+                                meta.aggregations[key] = getTopHitsResult(value,key,esResponse,aggregationObjects);
+                                //esResponse is what gets retuend so modify linked in that.
                             }else if (value){
                                 //stats & extended_stats aggs
                                 if(value[key]){
@@ -280,7 +340,7 @@ function ElasticFortune (fortune_app,es_url,index,type,collectionNameLookup) {
                         });
                         return meta;
                     };
-                    esResponse.meta = createAggregations(es_results);
+                    esResponse.meta = createAggregations(es_results,esResponse,aggregationObjects);
                 }
 
                 //Add in meta.geo_distance
@@ -310,7 +370,7 @@ function ElasticFortune (fortune_app,es_url,index,type,collectionNameLookup) {
         });
     }
 
-    function esSearch(esQuery,req,res) {
+    function esSearch(esQuery,aggregationObjects,req,res) {
         var params=[];
         var query=req.query;
         query['include'] && params.push("include="+ query['include']);
@@ -334,7 +394,7 @@ function ElasticFortune (fortune_app,es_url,index,type,collectionNameLookup) {
                 fields && (fields=fields.split(','));
                 //id field is required.
                 fields && fields.push("id");
-                return sendSearchResponse(es_results, res,includes,fields);
+                return sendSearchResponse(es_results, res,includes,fields,aggregationObjects);
             }
         });
     }
@@ -344,9 +404,9 @@ function ElasticFortune (fortune_app,es_url,index,type,collectionNameLookup) {
 
 var requiredAggOptions = {
     top_hits:["type"],
-    terms:["type","field"],
-    stats:["type","field"],
-    extended_stats:["type","field"]
+    terms:["type","property"],
+    stats:["type","property"],
+    extended_stats:["type","property"]
 }
 
 function assertAggregationObjectHasRequiredOptions(aggregationObject){
@@ -379,6 +439,24 @@ function unexpandEntity(sourceObject,includeFields){
     })
     includeFields && includeFields.length && (sourceObject = Util.includeFields(sourceObject,includeFields));
     return sourceObject;
+}
+
+//A sub-entity is a linked object returned by es as part of the source graph. They are expanded differently from primary entities, and must be unexpanded differently as well.
+function unexpandSubentity(subEntity){
+    if(_.isArray(subEntity)){
+        _.each(subEntity,function(entity,index){
+            subEntity[index]=unexpandSubentity(entity);
+        })
+    }else{
+        _.each(subEntity,function(val,propertyName){
+            if(_.isObject(val) && val.id){
+                subEntity["links"] = subEntity["links"] || {};
+                subEntity["links"][propertyName]=val.id;
+                delete subEntity[propertyName];
+            }
+        })
+    }
+    return subEntity;
 }
 
 function getResponseArrayFromESResults(results,fields){
@@ -625,11 +703,11 @@ ElasticFortune.prototype.getEsQueryBody = function (predicates, nestedPredicates
 
     function addInDefaultAggregationQuery(aggs,aggregationObject,extraShallowValues){
         //Todo: stop crash if no field is provided, or crash more elegantly.
-        var isDeepAggregation = (aggregationObject.field.lastIndexOf(".")>0);
-        var path = aggregationObject.field.substr(0, aggregationObject.field.lastIndexOf("."));
+        var isDeepAggregation = (aggregationObject.property.lastIndexOf(".")>0);
+        var path = aggregationObject.property.substr(0, aggregationObject.property.lastIndexOf("."));
         var shallowAggs = {};
         shallowAggs[aggregationObject.type] =  {
-            field: aggregationObject.field
+            field: aggregationObject.property
         };
         _.each(extraShallowValues||[],function(extraShallowValue,extraShallowKey){
             shallowAggs[aggregationObject.type][extraShallowKey]=extraShallowValue;
@@ -658,7 +736,7 @@ ElasticFortune.prototype.getEsQueryBody = function (predicates, nestedPredicates
             if(aggregationObject.type=="terms"){
                 isDeepAggregation = addInDefaultAggregationQuery(aggs,aggregationObject, {size: aggregationObject.limit || DEFAULT_AGGREGATION_LIMIT});
             }else if (aggregationObject.type=="top_hits"){
-                var shallowTermsAggs = {
+                var shallowAggs = {
                     top_hits: {
                         size:aggregationObject.limit?Number(aggregationObject.limit) : DEFAULT_TOP_HITS_AGGREGATION_LIMIT
                     }
@@ -668,17 +746,17 @@ ElasticFortune.prototype.getEsQueryBody = function (predicates, nestedPredicates
                     _.each(aggregationObject.sort.split(','),function(sortParam) {
                         var sortDirection = (sortParam[0]!="-"?"asc":"desc");
                         sortDirection=="desc" && (sortParam = sortParam.substr(1));
-                        shallowTermsAggs.top_hits.sort= shallowTermsAggs.top_hits.sort || [];
+                        shallowAggs.top_hits.sort= shallowAggs.top_hits.sort || [];
                         var sortTerm = {};
                         sortTerm[sortParam]={"order":sortDirection};
-                        shallowTermsAggs.top_hits.sort.push(sortTerm);
+                        shallowAggs.top_hits.sort.push(sortTerm);
                     });
                 }
-                if(aggregationObject.include){
-                    shallowTermsAggs.top_hits["_source"]={};
-                    shallowTermsAggs.top_hits["_source"]["include"] = aggregationObject.include.split(',');
+                if(aggregationObject.fields){
+                    shallowAggs.top_hits["_source"]={};
+                    shallowAggs.top_hits["_source"]["include"] = aggregationObject.fields.split(',');
                 }
-                aggs[aggregationObject.name] = shallowTermsAggs;
+                aggs[aggregationObject.name] = shallowAggs;
 
             }else if (aggregationObject.type=="stats" || aggregationObject.type=="extended_stats"){
                 isDeepAggregation = addInDefaultAggregationQuery(aggs,aggregationObject);
@@ -869,7 +947,10 @@ ElasticFortune.prototype.enableAutoSync= function(endpoint){
     var _this = this;
     this.fortune_app.after(endpoint, function (req, res, next) {
         if (req.method === 'POST' || (req.method === 'PUT' && this.id)) {
-            return _this.expandAndSync(this);
+            return _this.expandAndSync(this)
+                .then(function(response){
+                    return unexpandEntity(response);
+                });
         } else {
             return this;
         }
@@ -945,6 +1026,7 @@ ElasticFortune.prototype.expandEntity = function (entity,depth){
 //                    delete entity.links[key];
 //                }
                 console.warn(errorMessage);
+                throw new Error(errorMessage);
             });
         }else{
             console.warn("Failed to find the name of the collection with "+key +" in it.");
