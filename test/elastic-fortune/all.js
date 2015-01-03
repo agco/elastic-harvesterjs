@@ -10,19 +10,21 @@ var fixtures = require('./../fixtures.json');
 var baseUrl = 'http://localhost:' + process.env.PORT;
 var keys = {};
 
+var ES_INDEX_WAIT_TIME = 1000; //we'll wait this amount of time before querying the es_index.
 _.each(fixtures, function (resources, collection) {
     keys[collection] = inflect.pluralize(collection);
 });
 
 describe('using mongodb adapter', function () {
     var ids = {};
+    var _fortuneApp;
     //this.timeout(50000);
 
     before(function (done) {
         this.app
             .then(function (fortuneApp){
                 var expectedDbName = fortuneApp.options.db;
-
+                _fortuneApp = fortuneApp;
                 return new Promise(function(resolve){
                     fortuneApp.adapter.mongoose.connections[1].db.collectionNames(function(err, collections){
                         resolve(_.compact(_.map(collections, function(collection){
@@ -48,7 +50,37 @@ describe('using mongodb adapter', function () {
             }).then(function(wipeFns){
                 console.log("Wiping collections:");
                 return RSVP.all(wipeFns);
+            }).then(function(){
+                console.log("Wiping elastic-search:");
+
+                return new Promise(function (resolve) {
+                    request(_fortuneApp.options.es_url)
+                        .delete('/' + _fortuneApp.options.es_index)
+                        .send({})
+                        .expect('Content-Type', /json/)
+                        .end(function (error, response) {
+                            should.not.exist(error);
+                            var body = JSON.parse(response.text);
+                            resolve();
+                        });
+                })
+
             })
+
+            .then(function(){
+                return new Promise(function (resolve) {
+                    request(_fortuneApp.options.es_url)
+                        .post('/' + _fortuneApp.options.es_index)
+                        .send({})
+                        .expect('Content-Type', /json/)
+                        .end(function (error, response) {
+                            should.not.exist(error);
+                            var body = JSON.parse(response.text);
+                            resolve();
+                        });
+                })
+            })
+
 
 
             .then(function () {
@@ -82,7 +114,8 @@ describe('using mongodb adapter', function () {
                 });
 
                 return RSVP.all(createResources).then(function() {
-                    done();
+                    setTimeout(done,ES_INDEX_WAIT_TIME);
+                    //done();
                 });
             })
             .catch(function (err) {
@@ -96,7 +129,7 @@ describe('using mongodb adapter', function () {
 
     require("./limits")(baseUrl,keys,ids);
 //    require("./includes")(baseUrl,keys,ids);
-    require("./aggregations")(baseUrl,keys,ids);
+    require("./aggregations")(baseUrl,keys,ids,ES_INDEX_WAIT_TIME);
 
 
     after(function (done) {

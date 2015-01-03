@@ -7,7 +7,7 @@ var Promise = RSVP.Promise;
 var fixtures = require('./../fixtures.json');
 
 
-module.exports = function(baseUrl,keys,ids) {
+module.exports = function(baseUrl,keys,ids,ES_INDEX_WAIT_TIME) {
 
     describe('aggregations', function () {
         describe('terms', function () {
@@ -105,23 +105,69 @@ module.exports = function(baseUrl,keys,ids) {
                             should.not.exist(error);
                             var body = JSON.parse(response.text);
                             (body[keys.person][0].links.pets).should.containEql(ids[keys.pet][0]);
-                            resolve(done());
+                            setTimeout(function(){
+                                resolve(done());
+                            },ES_INDEX_WAIT_TIME)
                         });
                 })
             });
 
             it('should be possible to have linked documents returned by a level 1 top_hits aggregation', function (done) {
                 request(baseUrl)
-                    .get('/' + keys.person + '/search?aggregations=mostpopular&mostpopular.type=top_hits&mostpopular.sort=-appearances&mostpopular.limit=1&mostpopular.include=soulmates')
+                    .get('/' + keys.person + '/search?limit=10000&aggregations=mostpopular&mostpopular.type=top_hits&mostpopular.sort=-appearances&mostpopular.limit=1000&mostpopular.include=pets')
                     .expect(200)
                     .end(function (err, res) {
                         should.not.exist(err);
                         var body = JSON.parse(res.text);
-                        should.exist(body.linked[keys.person]);
-                        (body.linked[keys.person].length).should.be.above(0);
+                        should.exist(body.linked[keys.pet]);
+                        (body.linked[keys.pet].length).should.equal(1);
+                        (body.linked[keys.pet][0].id).should.equal(ids[keys.pet][0]);
                         done();
                     });
             });
+
+            it('should be possible to have linked documents returned by a level N top_hits aggregation', function (done) {
+                request(baseUrl)
+                    .get('/' + keys.person + '/search?aggregations=n&n.property=name&n.aggregations=mostpopular&mostpopular.type=top_hits&mostpopular.sort=-appearances&mostpopular.limit=1&mostpopular.include=pets')
+                    .expect(200)
+                    .end(function (err, res) {
+                        should.not.exist(err);
+                        var body = JSON.parse(res.text);
+                        should.exist(body.linked[keys.pet]);
+                        (body.linked[keys.pet].length).should.equal(1);
+                        (body.linked[keys.pet][0].id).should.equal(ids[keys.pet][0]);
+                        done();
+                    });
+            });
+
+            it('should dedupe linked documents returned by both a level N top_hits aggregation & the fortune-provided include', function (done) {
+                request(baseUrl)
+                    .get('/' + keys.person + '/search?aggregations=n&n.property=name&n.aggregations=mostpopular&mostpopular.type=top_hits&mostpopular.sort=-appearances&mostpopular.limit=1&mostpopular.include=pets&include=pets')
+                    .expect(200)
+                    .end(function (err, res) {
+                        should.not.exist(err);
+                        var body = JSON.parse(res.text);
+                        should.exist(body.linked[keys.pet]);
+                        (body.linked[keys.pet].length).should.equal(1);
+                        done();
+                    });
+            });
+
+            //Skipping for now; this test requires an es_mapping to be provided.
+            it.skip('should be possible to have linked documents returned in a nested, then un-nested N level top_hits aggregation', function (done) {
+                request(baseUrl)
+                    .get('/' + keys.person + '/search?aggregations=n&n.property=links.pet.name&n.aggregations=mostpopular&mostpopular.type=top_hits&mostpopular.sort=-appearances&mostpopular.limit=1&mostpopular.include=pets')
+                    .expect(200)
+                    .end(function (err, res) {
+                        should.not.exist(err);
+                        var body = JSON.parse(res.text);
+                        should.exist(body.linked[keys.pet]);
+                        (body.linked[keys.pet].length).should.equal(1);
+                        (body.linked[keys.pet][0].id).should.equal(ids[keys.pet][0]);
+                        done();
+                    });
+            });
+
             it('should be able to remove linked documents', function (done) {
                 new Promise(function (resolve) {
                     request(baseUrl)

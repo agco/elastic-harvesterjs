@@ -174,13 +174,68 @@ function ElasticFortune (fortune_app,es_url,index,type,collectionNameLookup) {
             return esReponseObj["_source"];
         });
     }
-    function getTopHitsResult(aggResponse){
-      return _.map(aggResponse.hits.hits,function(esReponseObj){
-        //return esReponseObj["_source"];
+    //Note that this is not currently named well - it also provides the "includes" functionality to top_hits.
+    function getTopHitsResult(aggResponse,aggName,esResponse,aggregationObjects){
 
-        return unexpandEntity(esReponseObj["_source"]);
+        var aggLookup = {};
+        (function getAggLookup(aggLookup,aggregationObjects){
+            _.each(aggregationObjects,function(aggObj){
+                aggLookup[aggObj.name]=aggObj;
+                aggObj.aggregations && getAggLookup(aggLookup,aggObj.aggregations);
+            });
+        })(aggLookup,aggregationObjects);
 
-      });
+
+        var linked = {}//keeps track of all linked objects. type->id->true
+        var typeLookup = {}
+        //dedupes already-linked entities.
+        if(aggLookup[aggName] && aggLookup[aggName].include) {
+
+            _.each(aggLookup[aggName].include.split(','), function (linkProperty) {
+                if (_this.collectionNameLookup[linkProperty]) {
+                    var type = inflect.pluralize(_this.collectionNameLookup[linkProperty]);
+                    typeLookup[linkProperty]=type;
+
+                    esResponse.linked && _.each(esResponse.linked[type]||[],function(resource,collection){
+                        linked[type]=linked[type]||{};
+                        linked[type][resource.id]=true;
+                    })
+                }
+
+            });
+        }
+        return _.map(aggResponse.hits.hits,function(esReponseObj){
+            if(aggLookup[aggName] && aggLookup[aggName].include){
+                _.each(aggLookup[aggName].include.split(','), function (linkProperty) {
+                    if (typeLookup[linkProperty]) {
+                        var type = typeLookup[linkProperty];
+
+                        //if this isn't already linked, link it.
+                        //TODO: links may be an array of objects, so treat it that way at all times.
+                        var hasLinks = !!(esReponseObj._source.links) && !!(esReponseObj._source.links[linkProperty]);
+                        if(hasLinks){
+                            var entitiesToInclude = [].concat(unexpandSubentity(esReponseObj._source.links[linkProperty]));
+
+                            _.each(entitiesToInclude,function(entityToInclude){
+                                var entityIsAlreadyIncluded = !!(linked[type]) && !!(linked[type][entityToInclude.id]);
+                                if (!entityIsAlreadyIncluded) {
+                                    esResponse.linked = esResponse.linked || {};
+                                    esResponse.linked[type] = esResponse.linked[type] || [];
+
+                                    esResponse.linked[type] = esResponse.linked[type].concat(entityToInclude);
+                                    linked[type] = linked[type] || {};
+                                    linked[type][entityToInclude.id] = true;
+                                }
+                            })
+                        }
+                    } else {
+                        console.warn(linkProperty + " is not in collectionNameLookup. " + linkProperty + " was either incorrectly specified by the end-user, or dev failed to include the relevant key in the lookup provided to initialize elastic-fortune.");
+                    }
+                })
+            }
+            return unexpandEntity(esReponseObj["_source"]);
+
+        });
     }
 
     function sendSearchResponse(es_results, res, includes,fields,aggregationObjects) {
@@ -212,7 +267,7 @@ function ElasticFortune (fortune_app,es_url,index,type,collectionNameLookup) {
 
                                 }else if (aggResponse.hits && aggResponse.hits.hits){
                                     //top_hits aggs result from nested query w/o reverse nesting.
-                                    retVal[responseKey] = getTopHitsResult(aggResponse);
+                                    retVal[responseKey] = getTopHitsResult(aggResponse,responseKey,esResponse,aggregationObjects);
                                     //to combine nested aggs w others, you have to un-nest them, & this takes up an aggregation-space.
                                 }else if (responseKey!="reverse_nesting" && aggResponse){ //stats & extended_stats aggs
                                     //This means it's the result of a nested stats or extended stats query.
@@ -236,7 +291,8 @@ function ElasticFortune (fortune_app,es_url,index,type,collectionNameLookup) {
 
                                             //this gets a little MORE complicated because of reverse-nested then renested top_hits aggs
                                         }else if (reverseNestedResponseProperty.hits && reverseNestedResponseProperty.hits.hits){
-                                            retVal[reverseNestedResponseKey] = getTopHitsResult(reverseNestedResponseProperty);
+                                            retVal[reverseNestedResponseKey] = getTopHitsResult(reverseNestedResponseProperty,reverseNestedResponseKey,esResponse,aggregationObjects);
+
                                             //stats & extended_stats aggs
                                         }else if (reverseNestedResponseProperty){
                                             //This means it's the result of a nested stats or extended stats query.
@@ -270,57 +326,7 @@ function ElasticFortune (fortune_app,es_url,index,type,collectionNameLookup) {
                                 meta.aggregations[key] = createBuckets(value[key]["buckets"]);
                             } else if (value.hits && value.hits.hits) {
                                 //top_hits aggs result from totally un-nested query
-                                //meta.aggregations[key] = getTopHitsResult(value);
-
-                                //todo: I can tell aggs apart in two ways: depth & name. Depth here is 0.
-                                var aggLookup = {};
-                                _.each(aggregationObjects,function(aggObj){
-                                    aggLookup[aggObj.name]=aggObj;
-                                });
-
-                                var linked = {}//keeps track of all linked objects. type->id->true
-                                var typeLookup = {}
-                                //dedupes already-linked entities.
-                                if(aggLookup[key] && aggLookup[key].include) {
-
-                                    _.each(aggLookup[key].include.split(','), function (linkProperty) {
-                                        if (_this.collectionNameLookup[linkProperty]) {
-                                            var type = inflect.pluralize(_this.collectionNameLookup[linkProperty]);
-                                            typeLookup[linkProperty]=type;
-
-                                            esResponse.linked && _.each(esResponse.linked[type],function(resource,collection){
-                                                linked[type]=linked[type]||{};
-                                                linked[type][resource.id]=true;
-                                            })
-                                        }
-
-                                    });
-                                }
-                                meta.aggregations[key] = _.map(value.hits.hits,function(esReponseObj){
-                                    console.warn(JSON.stringify(aggregationObjects));
-                                    //todo: I can tell aggs apart in two ways: depth & name. Depth here is 0.
-                                    if(aggLookup[key] && aggLookup[key].include){
-                                        var linkProperty =  aggLookup[key].include;
-                                        if(typeLookup[linkProperty]){
-                                            var type = typeLookup[linkProperty];
-
-                                            //if this isn't already linked, link it.
-                                            if(! (linked[type] && esReponseObj._source.links && esReponseObj._source.links[linkProperty] && linked[type][esReponseObj._source.links[linkProperty].id])){
-                                                esResponse.linked = esResponse.linked || {};
-                                                //TODO:  no clue
-                                                esResponse.linked[type]=esResponse.linked[type] || [];
-                                                var linkedEntity = unexpandSubentity(esReponseObj._source.links[linkProperty]);
-                                                esResponse.linked[type] = esResponse.linked[type].concat(linkedEntity);
-                                                linked[type] = linked[type] || {};
-                                                linked[type][linkedEntity.id]=true;
-                                            }
-                                        }else{
-                                            console.warn(linkProperty+ " is not in collectionNameLookup. "+linkProperty + " was either incorrectly specified by the end-user, or dev failed to include the relevant key in the lookup provided to initialize elastic-fortune.");
-                                        }
-                                    }
-                                    return unexpandEntity(esReponseObj["_source"]);
-
-                                });
+                                meta.aggregations[key] = getTopHitsResult(value,key,esResponse,aggregationObjects);
                                 //esResponse is what gets retuend so modify linked in that.
                             }else if (value){
                                 //stats & extended_stats aggs
@@ -437,13 +443,19 @@ function unexpandEntity(sourceObject,includeFields){
 
 //A sub-entity is a linked object returned by es as part of the source graph. They are expanded differently from primary entities, and must be unexpanded differently as well.
 function unexpandSubentity(subEntity){
-    _.each(subEntity,function(val,propertyName){
-        if(_.isObject(val) && val.id){
-            subEntity["links"] = subEntity["links"] || {};
-            subEntity["links"][propertyName]=val.id;
-            delete subEntity[propertyName];
-        }
-    })
+    if(_.isArray(subEntity)){
+        _.each(subEntity,function(entity,index){
+            subEntity[index]=unexpandSubentity(entity);
+        })
+    }else{
+        _.each(subEntity,function(val,propertyName){
+            if(_.isObject(val) && val.id){
+                subEntity["links"] = subEntity["links"] || {};
+                subEntity["links"][propertyName]=val.id;
+                delete subEntity[propertyName];
+            }
+        })
+    }
     return subEntity;
 }
 
