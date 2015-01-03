@@ -11,6 +11,19 @@ module.exports = function(baseUrl,keys,ids) {
 
     describe('aggregations', function () {
         describe('terms', function () {
+            it('should keep simple backwards compatibility with original terms aggregation', function (done) {
+                request(baseUrl)
+                    .get('/' + keys.person + '/search?aggregations.fields=name')
+                    .expect(200)
+                    .end(function (err, res) {
+                        should.not.exist(err);
+                        var body = JSON.parse(res.text);
+                        should.exist(body.meta.aggregations.name);
+                        (body.meta.aggregations.name.length).should.equal(fixtures.person.length);
+                        done();
+                    });
+            });
+
             it('should be possible to do a level 1 terms aggregation', function (done) {
                 request(baseUrl)
                     .get('/' + keys.person + '/search?aggregations=name_agg&name_agg.type=terms&name_agg.property=name')
@@ -69,6 +82,62 @@ module.exports = function(baseUrl,keys,ids) {
                         (body.meta.aggregations.mostpopular[0].name).should.equal(max_appearances_name);
                         done();
                     });
+            });
+
+            it('should be able to add linked documents', function (done) {
+                new Promise(function (resolve) {
+                    var payload = {};
+
+                    payload[keys.person] = [
+                        {
+                            links: {
+                                pets: [ids[keys.pet][0]]
+                            }
+                        }
+                    ];
+
+                    request(baseUrl)
+                        .put('/' + keys.person + '/' + ids[keys.person][0])
+                        .send(payload)
+                        .expect('Content-Type', /json/)
+                        .expect(200)
+                        .end(function (error, response) {
+                            should.not.exist(error);
+                            var body = JSON.parse(response.text);
+                            (body[keys.person][0].links.pets).should.containEql(ids[keys.pet][0]);
+                            resolve(done());
+                        });
+                })
+            });
+
+            it('should be possible to have linked documents returned by a level 1 top_hits aggregation', function (done) {
+                request(baseUrl)
+                    .get('/' + keys.person + '/search?aggregations=mostpopular&mostpopular.type=top_hits&mostpopular.sort=-appearances&mostpopular.limit=1&mostpopular.include=soulmates')
+                    .expect(200)
+                    .end(function (err, res) {
+                        should.not.exist(err);
+                        var body = JSON.parse(res.text);
+                        should.exist(body.linked[keys.person]);
+                        (body.linked[keys.person].length).should.be.above(0);
+                        done();
+                    });
+            });
+            it('should be able to remove linked documents', function (done) {
+                new Promise(function (resolve) {
+                    request(baseUrl)
+                        .patch('/' + keys.person + '/' + ids[keys.person][0])
+                        .send([
+                            {path: '/' + keys.person + '/0/links/pets', op: 'replace', value: []}
+                        ])
+                        .expect('Content-Type', /json/)
+                        .expect(200)
+                        .end(function (error, response) {
+                            should.not.exist(error);
+                            var body = JSON.parse(response.text);
+                            should.not.exist(body[keys.person][0].links);
+                            resolve(done());
+                        });
+                })
             });
         });
     });

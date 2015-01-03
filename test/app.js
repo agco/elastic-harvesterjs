@@ -15,14 +15,14 @@ function createApp(options) {
 
         .resource('pet', {
             name: String,
-            appearances: Number,
-            owner: 'person'
+            appearances: Number
         })
 
     var collectionNameLookup = {
         "soulmate": "person",
         "lovers": "person",
-        "pets":"pet"
+        "pets":"pet",
+        "owner":"person"
     };
 
     var peopleSearch = new ElasticFortune(fortuneApp, options.es_url,options.es_index, "people", collectionNameLookup);
