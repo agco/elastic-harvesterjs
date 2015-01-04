@@ -1,8 +1,8 @@
 # Elastic-Fortune
 
-Elastic-Fortune is a Nodejs implementation of the [JSON API Search Profile](https://github.com/agco-adm/json-api-search-profile).
+Elastic-Harvest is a Nodejs implementation of the [JSON API Search Profile](https://github.com/agco-adm/json-api-search-profile).
 
-This library ties together Fortunejs and Elasticsearch to offer the required [linked resource filtering and aggregation](https://github.com/agco-adm/json-api-search-profile/blob/master/public/profile.md) features.
+This library ties together Harvest and Elasticsearch to offer the required [linked resource filtering and aggregation](https://github.com/agco-adm/json-api-search-profile/blob/master/public/profile.md) features.
 
 Apart from that it also provides a number of helper functions to synchronize Fortunejs / Mongodb resources with an Elasticsearch backend.
 
@@ -14,19 +14,18 @@ Apart from that it also provides a number of helper functions to synchronize For
 
 ## Roadmap
 
-- Top_hits aggregation interop with JSON API features, inclusion and sparse fieldsets [#1](https://github.com/agco-adm/elastic-fortune/issues/1)
+- Top_hits aggregation interop with JSON API features, inclusion and sparse fieldsets [#1](https://github.com/agco-adm/elastic-harvest/issues/1)
 - More aggregations : min, max, sum, avg, percentiles, percentile_ranks, cardinality, geo_bounds, significant_terms, range, date_range, filter, filters, missing, histogram, date_histogram, geo_distance
-- Reliable Fortunejs/Mongodb - Elasticsearch data synchronisation ( oplog based )
+- Reliable Harvest/Mongodb - Elasticsearch data synchronisation ( oplog based )
 - Support adaptive queries, use the ES mapping file to figure out whether to use parent/child or nested queries / aggregations
-- Use Fortunejs associations + ES mapping file to assemble data graph rather than having to explicitly specify them through 'collectionNameLookup'
-- Use Fortunejs associations + ES mapping file to discover which Mongodb collections have to be synced rather than having to register them explicitly
-- Bootstrap Elasticsearch with existing data from Fortunjs resources through REST endpoint
+- Use Harvest associations + ES mapping file to assemble data graph rather than having to explicitly specify them through 'collectionNameLookup'
+- Use Harvest associations + ES mapping file to discover which Mongodb collections have to be synced rather than having to register them explicitly
+- Bootstrap Elasticsearch with existing data from Harvest resources through REST endpoint
 - Bootstrap Elasticsearch mapping file through REST endpoint
 
 ## Dependencies
  
-"fortune-agco": "\*",  
-"fortune-mongodb-agco": "\*",
+TODO
 
 
 ## Usage
@@ -62,8 +61,8 @@ fortune_app.onRouteCreated('dealer').then(function(fortuneRoute){
 ```
 
 
-#### Create an :after callback & sync elastic search after each item is posted to fortune
-#####Note - only 1 "after" callback is allowed per endpoint, so if you enable autosync, you're giving it up to elastic-fortune.
+#### Create an :after callback & sync elastic search after each item is posted to harvest
+#####Note - only 1 "after" callback is allowed per endpoint, so if you enable autosync, you're giving it up to elastic-harvest.
 ```js
 dealerSearch.enableAutoSync("dealer");
 ```
