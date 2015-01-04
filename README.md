@@ -4,7 +4,7 @@ Elastic-Harvest is a Nodejs implementation of the [JSON API Search Profile](http
 
 This library ties together [Harvest](https://github.com/agco-adm/elastic-harvest) and Elasticsearch to offer the required [linked resource filtering and aggregation](https://github.com/agco-adm/json-api-search-profile/blob/master/public/profile.md) features.
 
-Apart from that it also provides a number of helper functions to synchronize Fortunejs / Mongodb resources with an Elasticsearch backend.
+Apart from that it also provides a number of helper functions to synchronize Harvest / Mongodb resources with an Elasticsearch backend.
 
 
 ## Features
