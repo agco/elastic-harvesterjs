@@ -1,4 +1,4 @@
-# Elastic-Fortune
+# Elastic-Harvest
 
 Elastic-Harvest is a Nodejs implementation of the [JSON API Search Profile](https://github.com/agco-adm/json-api-search-profile).
 
@@ -105,14 +105,14 @@ dealerSearch.delete(dealer.id);
 
 
 #### Create an :after callback & keep your elastic search index up to date with PUTs and POSTs on linked documents. (added in 0.0.5)
-#####Note - only 1 "after" callback is allowed per endpoint, so if you enable indexUpdateOnModelUpdate, you're giving it up to elastic-fortune.
+#####Note - only 1 "after" callback is allowed per endpoint, so if you enable indexUpdateOnModelUpdate, you're giving it up to elastic-harvest.
 ```js
 dealerSearch.enableAutoIndexUpdateOnModelUpdate("subdocumentsFortuneEndpoint","links.path.to.object.id");
 e.g. dealerSearch.enableAutoIndexUpdateOnModelUpdate("brand","links.current_contracts.brand.id");
 ```
 
 
-#### Update Elastic Search index when a related fortune model changes (added in 0.0.5)
+#### Update Elastic Search index when a related harvest model changes (added in 0.0.5)
 ```js
 entity = this;
 dealerSearch.updateIndexForLinkedDocument("links.path.to.object.id",entity);
