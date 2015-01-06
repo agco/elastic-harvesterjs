@@ -1,16 +1,34 @@
-Extra Prerequisites
----------------
-Requires: 
-"fortune-agco": "~0.2.10",
-"fortune-mongodb-agco": "~0.2.4",
+# Elastic-Harvest
 
-But they aren't direct dependencies, so they aren't listed in package.json; however you're required to be using at least those versions of those packages
-for compatibility with this module.
+Elastic-Harvest is a Nodejs implementation of the [JSON API Search Profile](https://github.com/agco-adm/json-api-search-profile).
 
-We currently also require that you use mongodb as your datastore.
+This library ties together [Harvest](https://github.com/agco-adm/elastic-harvest) and Elasticsearch to offer the required [linked resource filtering and aggregation](https://github.com/agco-adm/json-api-search-profile/blob/master/public/profile.md) features.
 
-Usage
-----
+Apart from that it also provides a number of helper functions to synchronize Harvest / Mongodb resources with an Elasticsearch backend.
+
+
+## Features
+
+- Aggregations : stats, extended_stats, top_hits, terms
+- Primary and Linked resource filtering interop
+
+## Roadmap
+
+- Top_hits aggregation interop with JSON API features, inclusion and sparse fieldsets [#1](https://github.com/agco-adm/elastic-harvest/issues/1)
+- More aggregations : min, max, sum, avg, percentiles, percentile_ranks, cardinality, geo_bounds, significant_terms, range, date_range, filter, filters, missing, histogram, date_histogram, geo_distance
+- Reliable Harvest/Mongodb - Elasticsearch data synchronisation ( oplog based )
+- Support adaptive queries, use the ES mapping file to figure out whether to use parent/child or nested queries / aggregations
+- Use Harvest associations + ES mapping file to assemble data graph rather than having to explicitly specify them through 'collectionNameLookup'
+- Use Harvest associations + ES mapping file to discover which Mongodb collections have to be synced rather than having to register them explicitly
+- Bootstrap Elasticsearch with existing data from Harvest resources through REST endpoint
+- Bootstrap Elasticsearch mapping file through REST endpoint
+
+## Dependencies
+ 
+TODO
+
+
+## Usage
 
 ```js
 //Hash of properties to related mongo collections
@@ -27,12 +45,12 @@ var collectionNameLookup = {
     "business_hours": "business_hours",
     "current_offerings": "offering",
     "dealer_misc": "dealers_misc"
-}
+}collectionNameLookup
 var Elastic_Search_URL = process.env.BONSAI_URL || "http://127.0.0.1:9200";
 var Elastic_Search_Index = "dealer-api";
 var type = "dealers";
 ```
-#Create elastic search endpoint (NB: api changed in v0.0.6)
+#### Create elastic search endpoint (NB: api changed in v0.0.6)
 ```js
 var dealerSearch = new ElasticFortune(fortune_app, Elastic_Search_URL,Elastic_Search_Index, type, collectionNameLookup);
 fortune_app.router.get('/dealers/search', dealerSearch.route);
@@ -43,14 +61,14 @@ fortune_app.onRouteCreated('dealer').then(function(fortuneRoute){
 ```
 
 
-##Create an :after callback & sync elastic search after each item is posted to fortune
-#####Note - only 1 "after" callback is allowed per endpoint, so if you enable autosync, you're giving it up to elastic-fortune.
+#### Create an :after callback & sync elastic search after each item is posted to harvest
+#####Note - only 1 "after" callback is allowed per endpoint, so if you enable autosync, you're giving it up to elastic-harvest.
 ```js
 dealerSearch.enableAutoSync("dealer");
 ```
 
 
-##Alternative way to create an :after endpoint & sync elastic search. This approach gives you access to do more in the after callback.
+#### Alternative way to create an :after endpoint & sync elastic search. This approach gives you access to do more in the after callback.
 ```js
 this.fortune_app.after("dealer", function (req, res, next) {
     if (req.method === 'POST' || (req.method === 'PUT' && this.id)) {
@@ -62,128 +80,45 @@ this.fortune_app.after("dealer", function (req, res, next) {
 ```    
 
 
-##Expand an object's links:
+#### Expand an object's links:
 ```js
 dealerSearch.expandEntity(dealer);
 ```
 
 
-##Send an object to elastic search after expanding it's links:
+#### Send an object to elastic search after expanding it's links:
 ```js
 dealerSearch.expandAndSync(dealer);
 ```
 
 
-##Send an object to elastic search without expanding it's links:
+#### Send an object to elastic search without expanding it's links:
 ```js
 dealerSearch.sync(dealer);
 ```
 
 
-##Delete an object in elastic search: (added in 0.0.3)
+#### Delete an object in elastic search: (added in 0.0.3)
 ```js
 dealerSearch.delete(dealer.id);
 ```
 
 
-##Create an :after callback & keep your elastic search index up to date with PUTs and POSTs on linked documents. (added in 0.0.5)
-#####Note - only 1 "after" callback is allowed per endpoint, so if you enable indexUpdateOnModelUpdate, you're giving it up to elastic-fortune.
+#### Create an :after callback & keep your elastic search index up to date with PUTs and POSTs on linked documents. (added in 0.0.5)
+#####Note - only 1 "after" callback is allowed per endpoint, so if you enable indexUpdateOnModelUpdate, you're giving it up to elastic-harvest.
 ```js
 dealerSearch.enableAutoIndexUpdateOnModelUpdate("subdocumentsFortuneEndpoint","links.path.to.object.id");
 e.g. dealerSearch.enableAutoIndexUpdateOnModelUpdate("brand","links.current_contracts.brand.id");
 ```
 
 
-##Update Elastic Search index when a related fortune model changes (added in 0.0.5)
+#### Update Elastic Search index when a related harvest model changes (added in 0.0.5)
 ```js
 entity = this;
 dealerSearch.updateIndexForLinkedDocument("links.path.to.object.id",entity);
 ```
 
-##New aggregation syntax introduced (added in 0.0.5)
-GET on search url endpoint, with a url query like:
-
-```js
-http://fuse-api.example.com/tracking_points/search?
-links.equipment.id=<comma-seperated-eq-ids>&limit=0&
-aggregations=eq_agg
-&eq_agg.type=terms
-&eq_agg.field=links.equipment.id
-&eq_agg.aggregations=eq_agg_position_latest,eq_agg_variables
-&eq_agg_position_latest.type=top_hits
-&eq_agg_position_latest.sort=-time
-&eq_agg_position_latest.limit=1
-&eq_agg_position_latest.include=id,time,loc,alt,head
-&eq_agg_variables.type=terms
-&eq_agg_variables.field=tracking_data.spn
-&eq_agg_variables.aggregations=eq_agg_variables_latest
-&eq_agg_variables_latest.type=top_hits
-&eq_agg_variables_latest.sort=-time
-&eq_agg_variables_latest.limit=1
-&eq_agg_variables_latest.include=tracking_data
-```
-
-Expected response:
-```js
-{
-    "tracking_points": [],
-    "meta": {
-        "eq_agg": {
-            "<eq_id1>": {
-                "eq_agg_position_latest": {
-                    "id": "53b186e505904f229c523ec9",
-                    "alt": 39,
-                    "head": 24,
-                    "loc": {
-                        "type": "Point",
-                        "coordinates": [
-                            -114.7253799,
-                            33.4665489
-                        ]
-                    },
-                    "time": "2014-06-30T15:44:44.000Z"
-                },
-                "eq_agg_variables": {
-                    "1862": {
-                        "eq_agg_variables_latest": {
-                            "tracking_data": [
-                                {
-                                    "spn": 1862,
-                                    "raw": 25,
-                                    "imp": 0.05575,
-                                    "met": 0.09000000000000001,
-                                    "brit": 0.05575
-                                }
-                            ]
-                        }
-                    },
-                    "2147542304": {
-                        "eq_agg_variables_latest": {
-                            "tracking_data": [
-                                {
-                                    "spn": 2147542304,
-                                    "raw": 19,
-                                    "imp": 45.1612903224,
-                                    "met": 45.1612903224,
-                                    "brit": 45.1612903224
-                                }
-                            ]
-                        }
-                    }
-                }
-            },
-            "<eq_id2>": {
-                //..
-            }
-        }
-    },
-    "links": {
-        //..
-    }
-}
-```
-
-##Initialize an elastic search mapping (added in 0.0.6)
+#### Initialize an elastic search mapping (added in 0.0.6)
 ```js
 dealerSearch.initializeMapping(mappingObject).
 ```
@@ -257,8 +192,3 @@ module.exports= {
     }
 }
 ```
-
-##Allowed aggregation types
-stats & extended_stats (v0.0.8)
-terms
-top_hits
