@@ -429,11 +429,12 @@ var esDistanceFunctionLookup={
 function unexpandEntity(sourceObject,includeFields){
     _.each(sourceObject.links || [],function(val,key){
         if(!_.isArray(sourceObject.links[key])){
-            sourceObject.links[key] = ObjectId(val.id);
+            //I know the extra .toString seems unnecessary, but sometimes val.id is already an objectId, and other times its a string.
+            sourceObject.links[key] = ObjectId(val.id.toString());
 
         }else{
             _.each(sourceObject.links[key],function(innerVal,innerKey){
-                sourceObject.links[key][innerKey] = ObjectId(innerVal.id);
+                sourceObject.links[key][innerKey] = ObjectId(innerVal.id.toString());
             })
         }
     })
