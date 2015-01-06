@@ -429,11 +429,12 @@ var esDistanceFunctionLookup={
 function unexpandEntity(sourceObject,includeFields){
     _.each(sourceObject.links || [],function(val,key){
         if(!_.isArray(sourceObject.links[key])){
-            sourceObject.links[key] = ObjectId(val.id);
+            //I know the extra .toString seems unnecessary, but sometimes val.id is already an objectId, and other times its a string.
+            sourceObject.links[key] = ObjectId(val.id.toString());
 
         }else{
             _.each(sourceObject.links[key],function(innerVal,innerKey){
-                sourceObject.links[key][innerKey] = ObjectId(innerVal.id);
+                sourceObject.links[key][innerKey] = ObjectId(innerVal.id.toString());
             })
         }
     })
@@ -1074,10 +1075,39 @@ ElasticFortune.prototype.expandEntity = function (entity,depth){
     });
 }
 
+
+ElasticFortune.prototype.initializeIndex=function() {
+    var url = this.es_url + '/'+this.index;
+    console.log("Initializing es index.");
+    return requestAsync({uri:url, method: 'PUT', body:""}).then(function(response){
+        var body = JSON.parse(response[1]);
+        if(body.error){
+            throw new Error(response[1]);
+        }else{
+            return body;
+        }
+    });
+
+};
+
+ElasticFortune.prototype.deleteIndex=function() {
+    var url = this.es_url + '/'+this.index;
+    console.log("Deleting es index.");
+    return requestAsync({uri:url, method: 'DELETE', body:""}).then(function(response){
+        var body = JSON.parse(response[1]);
+        if(body.error){
+            throw new Error(response[1]);
+        }else{
+            return body;
+        }
+    });
+
+};
+
 //Posts an elastic search mapping to the server.Idempotent, so feel free to do this when starting up your server,
 //but if you change the mapping in a way that elastic search can't apply a transform to the current index to get there,
 //you'll have to reload the entire search index with new data, because this will fail.
-ElasticFortune.prototype.initializeMapping=function(mapping){
+ElasticFortune.prototype.initializeMapping=function(mapping,shouldNotRetry){
 
     var _this = this;
     var reqBody = JSON.stringify(mapping);
@@ -1085,9 +1115,15 @@ ElasticFortune.prototype.initializeMapping=function(mapping){
     return requestAsync({uri:es_resource, method: 'PUT', body:reqBody}).then(function(response){
         var body = JSON.parse(response[1]);
         if(body.error){
-            throw new Error(JSON.stringify(body));
+            if(_s.startsWith(body.error,"IndexMissingException") && !shouldNotRetry){
+                console.warn("Looks like we need to create an index - I'll handle that automatically for you & will retry adding the mapping afterward.")
+                return _this.initializeIndex().then(function(){return _this.initializeMapping(mapping,true)});
+            }else{
+                throw new Error(response[1]);
+            }
+        }else{
+            return body;
         }
-        return body;
     });
 }
 
