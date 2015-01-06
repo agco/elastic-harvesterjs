@@ -118,10 +118,21 @@ entity = this;
 dealerSearch.updateIndexForLinkedDocument("links.path.to.object.id",entity);
 ```
 
-#### Initialize an elastic search mapping (added in 0.0.6)
+#### Delete ES Index (added in 0.0.9)
+```js
+dealerSearch.deleteIndex().
+```
+
+#### Initialize ES Index (added in 0.0.9)
+```js
+dealerSearch.initializeIndex().
+```
+
+#### Initialize an elastic search mapping (added in 0.0.6, updated in 0.0.9)
 ```js
 dealerSearch.initializeMapping(mappingObject).
 ```
+v0.0.9 update provides automatic handling of missing-index errors.
 
 The Mapping object can be loaded from a js file that looks like:
 ```js
