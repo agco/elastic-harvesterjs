@@ -18,7 +18,6 @@ Apart from that it also provides a number of helper functions to synchronize Har
 - More aggregations : min, max, sum, avg, percentiles, percentile_ranks, cardinality, geo_bounds, significant_terms, range, date_range, filter, filters, missing, histogram, date_histogram, geo_distance
 - Reliable Harvest/Mongodb - Elasticsearch data synchronisation ( oplog based )
 - Support adaptive queries, use the ES mapping file to figure out whether to use parent/child or nested queries / aggregations
-- Use Harvest associations + ES mapping file to assemble data graph rather than having to explicitly specify them through 'collectionNameLookup'
 - Use Harvest associations + ES mapping file to discover which Mongodb collections have to be synced rather than having to register them explicitly
 - Bootstrap Elasticsearch with existing data from Harvest resources through REST endpoint
 - Bootstrap Elasticsearch mapping file through REST endpoint
@@ -32,7 +31,7 @@ TODO
 
 ```js
 //Hash of properties to related mongo collections
-var collectionNameLookup = {
+var collectionLookup = {
     "brand": "brand",
     "product_type": "product_type",
     "contract_type": "contract_type",
@@ -45,14 +44,15 @@ var collectionNameLookup = {
     "business_hours": "business_hours",
     "current_offerings": "offering",
     "dealer_misc": "dealers_misc"
-}collectionNameLookup
+}
+#####NB: collectionLookup deprecated in v0.0.10 - it's now automatically generated.
 var Elastic_Search_URL = process.env.BONSAI_URL || "http://127.0.0.1:9200";
 var Elastic_Search_Index = "dealer-api";
 var type = "dealers";
 ```
 #### Create elastic search endpoint (NB: api changed in v0.0.6)
 ```js
-var dealerSearch = new ElasticFortune(fortune_app, Elastic_Search_URL,Elastic_Search_Index, type, collectionNameLookup);
+var dealerSearch = new ElasticFortune(fortune_app, Elastic_Search_URL,Elastic_Search_Index, type, collectionLookup);
 fortune_app.router.get('/dealers/search', dealerSearch.route);
 //Required to make the elastic search endpoint work properly
 fortune_app.onRouteCreated('dealer').then(function(fortuneRoute){

@@ -18,13 +18,11 @@ var DEFAULT_AGGREGATION_LIMIT = 0;//0=>Integer.MAX_VALUE
 var DEFAULT_TOP_HITS_AGGREGATION_LIMIT = 10; //Cannot be zero. NOTE: Default number of responses in top_hit aggregation is 10.
 var DEFAULT_SIMPLE_SEARCH_LIMIT = 1000; //simple searches don't specify a limit, and are only used internally for autoupdating
 
-function ElasticFortune (fortune_app,es_url,index,type,collectionNameLookup) {
+function ElasticFortune (fortune_app,es_url,index,type) {
     var _this= this;
-
+    this.collectionLookup=getCollectionLookup(fortune_app,type);
     this.adapter = fortune_app.adapter;
     this.fortune_app = fortune_app;
-    this.collectionNameLookup = collectionNameLookup;
-
     this.es_url=es_url;
     this.index=index;
     this.type = type;
@@ -192,8 +190,8 @@ function ElasticFortune (fortune_app,es_url,index,type,collectionNameLookup) {
         if(aggLookup[aggName] && aggLookup[aggName].include) {
 
             _.each(aggLookup[aggName].include.split(','), function (linkProperty) {
-                if (_this.collectionNameLookup[linkProperty]) {
-                    var type = inflect.pluralize(_this.collectionNameLookup[linkProperty]);
+                if (_this.collectionLookup[linkProperty]) {
+                    var type = inflect.pluralize(_this.collectionLookup[linkProperty]);
                     typeLookup[linkProperty]=type;
 
                     esResponse.linked && _.each(esResponse.linked[type]||[],function(resource,collection){
@@ -229,7 +227,7 @@ function ElasticFortune (fortune_app,es_url,index,type,collectionNameLookup) {
                             })
                         }
                     } else {
-                        console.warn(linkProperty + " is not in collectionNameLookup. " + linkProperty + " was either incorrectly specified by the end-user, or dev failed to include the relevant key in the lookup provided to initialize elastic-fortune.");
+                        console.warn(linkProperty + " is not in collectionLookup. " + linkProperty + " was either incorrectly specified by the end-user, or dev failed to include the relevant key in the lookup provided to initialize elastic-fortune.");
                     }
                 })
             }
@@ -494,7 +492,7 @@ ElasticFortune.prototype.getEsQueryBody = function (predicates, nestedPredicates
     }
     createEsQueryFragment = createMatchQueryFragment;
 
-    /*
+    /*-
      * Groups predicates at their lowest match level to simplify creating nested queries
      */
     var groupNestedPredicates = function(nestedPredicates){
@@ -1004,7 +1002,7 @@ ElasticFortune.prototype.expandEntity = function (entity,depth){
     var _this = this;
     //The first step to expand an entity is to get the objects it's linked to.
     _.each(entity.links || {}, function(val,key,list){
-        var collectionName = _this.collectionNameLookup[key];
+        var collectionName = _this.collectionLookup[key];
         if(collectionName) {
             var findFnName = "find";
             if(_.isArray(entity.links[key])){
@@ -1125,6 +1123,45 @@ ElasticFortune.prototype.initializeMapping=function(mapping,shouldNotRetry){
             return body;
         }
     });
+};
+
+
+function getCollectionLookup(fortune_app,type){
+
+    var schemaName = inflect.singularize(type);
+    var startingSchema = fortune_app._schema[schemaName];
+    var retVal = {};
+
+    function getLinkedSchemas(startingSchema){
+
+        var linkedSchemas = {};
+        linkedSchemas[schemaName]=true;
+
+        function setValueAndGetLinkedSchemas(propertyName,propertyValue){
+            retVal[propertyName]=propertyValue;
+            !linkedSchemas[propertyValue] && fortune_app._schema[propertyValue] && getLinkedSchemas(fortune_app._schema[propertyValue]);
+            linkedSchemas[propertyValue]=true;
+        }
+        _.each(startingSchema,function(property,propertyName){
+
+            if([typeof property]!="function") {
+                if(_.isString(property)) {
+                    setValueAndGetLinkedSchemas(propertyName,property);
+                }else if (_.isArray(property)){
+                    if(_.isString(property[0])){
+                        setValueAndGetLinkedSchemas(propertyName,property[0]);
+                    }else{
+                        setValueAndGetLinkedSchemas(propertyName,property[0].ref);
+                    }
+                }else if (_.isObject(property)){
+                    setValueAndGetLinkedSchemas(propertyName,property.ref);
+                }
+            }
+        });
+    };
+
+    getLinkedSchemas(startingSchema);
+    return retVal;
 }
 
 module.exports = ElasticFortune;

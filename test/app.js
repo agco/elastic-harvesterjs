@@ -18,14 +18,7 @@ function createApp(options) {
             appearances: Number
         })
 
-    var collectionNameLookup = {
-        "soulmate": "person",
-        "lovers": "person",
-        "pets":"pet",
-        "owner":"person"
-    };
-
-    var peopleSearch = new ElasticFortune(fortuneApp, options.es_url,options.es_index, "people", collectionNameLookup);
+    var peopleSearch = new ElasticFortune(fortuneApp, options.es_url,options.es_index, "people");
     fortuneApp.router.get('/people/search', peopleSearch.route);
 
     fortuneApp.onRouteCreated('person').then(function(fortuneRoute){
