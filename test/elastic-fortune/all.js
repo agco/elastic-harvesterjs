@@ -7,7 +7,7 @@ var request = require('supertest');
 var Promise = RSVP.Promise;
 var fixtures = require('./../fixtures.json');
 
-var baseUrl = 'http://localhost:' + process.env.PORT;
+var baseUrl = 'http://127.0.0.1:' + process.env.PORT;
 var keys = {};
 
 var ES_INDEX_WAIT_TIME = 1000; //we'll wait this amount of time before querying the es_index.
@@ -51,8 +51,7 @@ describe('using mongodb adapter', function () {
                 console.log("Wiping collections:");
                 return RSVP.all(wipeFns);
             }).then(function(){
-                console.log("Wiping elastic-search:");
-
+                console.log("Deleting elastic-search index:");
                 return new Promise(function (resolve) {
                     request(_fortuneApp.options.es_url)
                         .delete('/' + _fortuneApp.options.es_index)
@@ -60,6 +59,7 @@ describe('using mongodb adapter', function () {
                         .expect('Content-Type', /json/)
                         .end(function (error, response) {
                             should.not.exist(error);
+                            console.log(response);
                             var body = JSON.parse(response.text);
                             resolve();
                         });
@@ -68,6 +68,7 @@ describe('using mongodb adapter', function () {
             })
 
             .then(function(){
+                console.log("Adding elastic-search index:");
                 return new Promise(function (resolve) {
                     request(_fortuneApp.options.es_url)
                         .post('/' + _fortuneApp.options.es_index)
