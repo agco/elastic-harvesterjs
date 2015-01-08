@@ -11,10 +11,10 @@ Apart from that it also provides a number of helper functions to synchronize Har
 
 - Aggregations : stats, extended_stats, top_hits, terms
 - Primary and Linked resource filtering interop
+- Top_hits aggregation interop with JSON API features, inclusion and sparse fieldsets [#6](https://github.com/agco-adm/elastic-harvest/issues/6)
 
 ## Roadmap
 
-- Top_hits aggregation interop with JSON API features, inclusion and sparse fieldsets [#1](https://github.com/agco-adm/elastic-harvest/issues/1)
 - More aggregations : min, max, sum, avg, percentiles, percentile_ranks, cardinality, geo_bounds, significant_terms, range, date_range, filter, filters, missing, histogram, date_histogram, geo_distance
 - Reliable Harvest/Mongodb - Elasticsearch data synchronisation ( oplog based )
 - Support adaptive queries, use the ES mapping file to figure out whether to use parent/child or nested queries / aggregations
