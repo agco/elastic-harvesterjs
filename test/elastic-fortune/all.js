@@ -7,7 +7,7 @@ var request = require('supertest');
 var Promise = RSVP.Promise;
 var fixtures = require('./../fixtures.json');
 
-var baseUrl = 'http://127.0.0.1:' + process.env.PORT;
+var baseUrl = 'http://localhost:' + process.env.PORT;
 var keys = {};
 
 var ES_INDEX_WAIT_TIME = 1000; //we'll wait this amount of time before querying the es_index.
