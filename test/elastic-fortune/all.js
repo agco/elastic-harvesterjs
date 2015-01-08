@@ -10,7 +10,7 @@ var fixtures = require('./../fixtures.json');
 var baseUrl = 'http://localhost:' + process.env.PORT;
 var keys = {};
 
-var ES_INDEX_WAIT_TIME = 100; //we'll wait this amount of time before querying the es_index.
+var ES_INDEX_WAIT_TIME = 1000; //we'll wait this amount of time before querying the es_index.
 _.each(fixtures, function (resources, collection) {
     keys[collection] = inflect.pluralize(collection);
 });
@@ -18,7 +18,7 @@ _.each(fixtures, function (resources, collection) {
 describe('using mongodb adapter', function () {
     var ids = {};
     var _fortuneApp;
-    //this.timeout(50000);
+    this.timeout(3000);
 
     before(function (done) {
         this.app
