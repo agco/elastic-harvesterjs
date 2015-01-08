@@ -51,7 +51,7 @@ describe('using mongodb adapter', function () {
                 console.log("Wiping collections:");
                 return RSVP.all(wipeFns);
             }).then(function(){
-                console.log("Deleting elastic-search index:");
+                console.log("Deleting elastic-search index.");
                 return new Promise(function (resolve) {
                     request(_fortuneApp.options.es_url)
                         .delete('/' + _fortuneApp.options.es_index)
@@ -59,7 +59,6 @@ describe('using mongodb adapter', function () {
                         .expect('Content-Type', /json/)
                         .end(function (error, response) {
                             should.not.exist(error);
-                            console.log(response);
                             var body = JSON.parse(response.text);
                             resolve();
                         });
@@ -68,7 +67,7 @@ describe('using mongodb adapter', function () {
             })
 
             .then(function(){
-                console.log("Adding elastic-search index:");
+                console.log("Adding new elastic-search index.");
                 return new Promise(function (resolve) {
                     request(_fortuneApp.options.es_url)
                         .post('/' + _fortuneApp.options.es_index)
@@ -105,6 +104,7 @@ describe('using mongodb adapter', function () {
                             .end(function (error, response) {
                                 should.not.exist(error);
                                 var resources = JSON.parse(response.text)[key];
+                                console.log(resources);
                                 ids[key] = ids[key] || [];
                                 resources.forEach(function (resource) {
                                     ids[key].push(resource.id);
