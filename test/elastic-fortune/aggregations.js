@@ -118,6 +118,8 @@ module.exports = function(baseUrl,keys,ids,ES_INDEX_WAIT_TIME) {
                     .expect(200)
                     .end(function (err, res) {
                         should.not.exist(err);
+                        should.not.exist(res.err);
+                        console.warn('linked doc error',res.err);
                         var body = JSON.parse(res.text);
                         should.exist(body.linked[keys.pet]);
                         (body.linked[keys.pet].length).should.equal(1);

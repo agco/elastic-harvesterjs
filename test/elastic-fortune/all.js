@@ -104,7 +104,6 @@ describe('using mongodb adapter', function () {
                             .end(function (error, response) {
                                 should.not.exist(error);
                                 var resources = JSON.parse(response.text)[key];
-                                console.log(resources);
                                 ids[key] = ids[key] || [];
                                 resources.forEach(function (resource) {
                                     ids[key].push(resource.id);
