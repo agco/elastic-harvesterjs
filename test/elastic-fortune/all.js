@@ -18,7 +18,7 @@ _.each(fixtures, function (resources, collection) {
 describe('using mongodb adapter', function () {
     var ids = {};
     var _fortuneApp;
-    //this.timeout(50000);
+    this.timeout(5000);
 
     before(function (done) {
         this.app
@@ -51,8 +51,7 @@ describe('using mongodb adapter', function () {
                 console.log("Wiping collections:");
                 return RSVP.all(wipeFns);
             }).then(function(){
-                console.log("Wiping elastic-search:");
-
+                console.log("Deleting elastic-search index.");
                 return new Promise(function (resolve) {
                     request(_fortuneApp.options.es_url)
                         .delete('/' + _fortuneApp.options.es_index)
@@ -68,6 +67,7 @@ describe('using mongodb adapter', function () {
             })
 
             .then(function(){
+                console.log("Adding new elastic-search index.");
                 return new Promise(function (resolve) {
                     request(_fortuneApp.options.es_url)
                         .post('/' + _fortuneApp.options.es_index)
