@@ -18,7 +18,7 @@ _.each(fixtures, function (resources, collection) {
 describe('using mongodb adapter', function () {
     var ids = {};
     var _fortuneApp;
-    this.timeout(10000);
+    this.timeout(5000);
 
     before(function (done) {
         this.app
