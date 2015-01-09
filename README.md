@@ -1,3 +1,5 @@
+[![Build Status](https://travis-ci.org/agco-adm/elastic-harvest.svg?branch=develop)](https://travis-ci.org/agco-adm/elastic-harvest)
+
 # Elastic-Harvest
 
 Elastic-Harvest is a Nodejs implementation of the [JSON API Search Profile](https://github.com/agco-adm/json-api-search-profile).
