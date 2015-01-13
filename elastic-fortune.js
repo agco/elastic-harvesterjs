@@ -243,9 +243,8 @@ function ElasticFortune (fortune_app,es_url,index,type) {
 
         return initialPromise.then(function(){
             var esResponseArray = getResponseArrayFromESResults(es_results,fields);
-            var objToBeAppended = {};
-            objToBeAppended[type]= esResponseArray;
-            var esResponse = _this.fortuneRoute.appendLinks(objToBeAppended);
+            var esResponse = {};
+            esResponse[type]= esResponseArray;
 
             _this.fortuneRoute.appendLinked(esResponse,includes)
                 .then(function(esResponse) {
@@ -342,23 +341,26 @@ function ElasticFortune (fortune_app,es_url,index,type) {
                 }
 
                 //Add in meta.geo_distance
-                if (es_results && es_results.hits && es_results.hits.hits && es_results.hits.hits[0] && es_results.hits.hits[0].fields && es_results.hits.hits[0].fields.distance){
+                if (es_results && es_results.hits && es_results.hits.hits && es_results.hits.hits[0] && es_results.hits.hits[0].fields && es_results.hits.hits[0].fields.distance) {
                     esResponse.meta = esResponse.meta || {};
-                    esResponse.meta.geo_distance={};
-                    _.each(es_results.hits.hits,function(hit){
+                    esResponse.meta.geo_distance = {};
+                    _.each(es_results.hits.hits, function (hit) {
                         var distance = hit.fields.distance[0];
                         var objId = hit._id;
                         var type = hit._type;
                         esResponse.meta.geo_distance[type] = esResponse.meta.geo_distance[type] || {};
-                        esResponse.meta.geo_distance[type][objId]=distance;
+                        esResponse.meta.geo_distance[type][objId] = distance;
                     });
                 }
+
+                    esResponse = _this.fortuneRoute.appendLinks(esResponse);
 
                 return res
                     .set('content-type', 'application/vnd.api+json') //todo set jsonapi ct
                     .status(200)
                     .send(JSON.stringify(esResponse,undefined, padding));
             }, function(error){
+                    esResponse = _this.fortuneRoute.appendLinks(esResponse);
 
                 return res
                     .set('content-type', 'application/vnd.api+json') //todo set jsonapi ct
