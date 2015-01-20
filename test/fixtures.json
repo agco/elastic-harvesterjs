@@ -18,5 +18,13 @@
       "name": "Ratbert",
       "appearances": 509
     }
+  ],
+  "toy": [
+    {
+      "name": "bear"
+    },
+    {
+      "name": "snake"
+    }
   ]
 }
