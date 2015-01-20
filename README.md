@@ -32,33 +32,17 @@ TODO
 ## Usage
 
 ```js
-//Hash of properties to related mongo collections
-var collectionLookup = {
-    "brand": "brand",
-    "product_type": "product_type",
-    "contract_type": "contract_type",
-    "region": "region",
-    "country": "country",
-    "address_country": "country",
-    "address_state_province": "state_province",
-    "current_contracts": "contract",
-    "phone_numbers": "phone_number",
-    "business_hours": "business_hours",
-    "current_offerings": "offering",
-    "dealer_misc": "dealers_misc"
-}
-#####NB: collectionLookup deprecated in v0.0.10 - it's now automatically generated.
 var Elastic_Search_URL = process.env.BONSAI_URL || "http://127.0.0.1:9200";
 var Elastic_Search_Index = "dealer-api";
 var type = "dealers";
 ```
 #### Create elastic search endpoint (NB: api changed in v0.0.6)
 ```js
-var dealerSearch = new ElasticFortune(fortune_app, Elastic_Search_URL,Elastic_Search_Index, type, collectionLookup);
-fortune_app.router.get('/dealers/search', dealerSearch.route);
+var dealerSearch = new ElasticHarvest(harvest_app, Elastic_Search_URL,Elastic_Search_Index, type);
+harvest_app.router.get('/dealers/search', dealerSearch.route);
 //Required to make the elastic search endpoint work properly
-fortune_app.onRouteCreated('dealer').then(function(fortuneRoute){
-    dealerSearch.setFortuneRoute(fortuneRoute);
+harvest_app.onRouteCreated('dealer').then(function(harvestRoute){
+    dealerSearch.setHarvestRoute(harvestRoute);
 });
 ```
 
@@ -72,7 +56,7 @@ dealerSearch.enableAutoSync("dealer");
 
 #### Alternative way to create an :after endpoint & sync elastic search. This approach gives you access to do more in the after callback.
 ```js
-this.fortune_app.after("dealer", function (req, res, next) {
+this.harvest_app.after("dealer", function (req, res, next) {
     if (req.method === 'POST' || (req.method === 'PUT' && this.id)) {
         return dealerSearch.expandAndSync(this);
     } else {
@@ -109,7 +93,7 @@ dealerSearch.delete(dealer.id);
 #### Create an :after callback & keep your elastic search index up to date with PUTs and POSTs on linked documents. (added in 0.0.5)
 #####Note - only 1 "after" callback is allowed per endpoint, so if you enable indexUpdateOnModelUpdate, you're giving it up to elastic-harvest.
 ```js
-dealerSearch.enableAutoIndexUpdateOnModelUpdate("subdocumentsFortuneEndpoint","links.path.to.object.id");
+dealerSearch.enableAutoIndexUpdateOnModelUpdate("subdocumentsHarvestEndpoint","links.path.to.object.id");
 e.g. dealerSearch.enableAutoIndexUpdateOnModelUpdate("brand","links.current_contracts.brand.id");
 ```
 

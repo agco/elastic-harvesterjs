@@ -140,7 +140,7 @@ module.exports = function(baseUrl,keys,ids,ES_INDEX_WAIT_TIME) {
                     });
             });
 
-            it('should dedupe linked documents returned by both a level N top_hits aggregation & the fortune-provided include', function (done) {
+            it('should dedupe linked documents returned by both a level N top_hits aggregation & the harvest-provided include', function (done) {
                 request(baseUrl)
                     .get('/' + keys.person + '/search?aggregations=n&n.property=name&n.aggregations=mostpopular&mostpopular.type=top_hits&mostpopular.sort=-appearances&mostpopular.limit=1&mostpopular.include=pets&include=pets')
                     .expect(200)

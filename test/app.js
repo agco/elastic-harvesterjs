@@ -1,9 +1,9 @@
-var fortune = require('fortune-agco');
+var harvest = require('harvest');
 var RSVP = require('rsvp');
-var ElasticFortune = require('../elastic-fortune');
+var ElasticHarvest = require('../elastic-harvest');
 
 function createApp(options) {
-    var fortuneApp = fortune(options)
+    var harvestApp = harvest(options)
 
         .resource('person', {
             name: String,
@@ -24,22 +24,22 @@ function createApp(options) {
         })
 
 
-    var peopleSearch = new ElasticFortune(fortuneApp, options.es_url,options.es_index, "people");
-    fortuneApp.router.get('/people/search', peopleSearch.route);
+    var peopleSearch = new ElasticHarvest(harvestApp, options.es_url,options.es_index, "people");
+    harvestApp.router.get('/people/search', peopleSearch.route);
 
-    fortuneApp.onRouteCreated('person').then(function(fortuneRoute){
-        peopleSearch.setFortuneRoute(fortuneRoute);
+    harvestApp.onRouteCreated('person').then(function(harvestRoute){
+        peopleSearch.setHarvestRoute(harvestRoute);
     });
 
     peopleSearch.enableAutoSync("person");
 
     return RSVP.all([
-        fortuneApp.onRouteCreated('pet'),
-        fortuneApp.onRouteCreated('person')
+        harvestApp.onRouteCreated('pet'),
+        harvestApp.onRouteCreated('person')
     ])
         .then(function () {
-            fortuneApp.listen(process.env.PORT);
-            return fortuneApp;
+            harvestApp.listen(process.env.PORT);
+            return harvestApp;
         });
 }
 

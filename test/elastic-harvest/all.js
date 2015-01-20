@@ -17,16 +17,16 @@ _.each(fixtures, function (resources, collection) {
 
 describe('using mongodb + elastic search', function () {
     var ids = {};
-    var _fortuneApp;
+    var _harvestApp;
     this.timeout(5000);
 
     before(function (done) {
         this.app
-            .then(function (fortuneApp){
-                var expectedDbName = fortuneApp.options.db;
-                _fortuneApp = fortuneApp;
+            .then(function (harvestApp){
+                var expectedDbName = harvestApp.options.db;
+                _harvestApp = harvestApp;
                 return new Promise(function(resolve){
-                    fortuneApp.adapter.mongoose.connections[1].db.collectionNames(function(err, collections){
+                    harvestApp.adapter.mongoose.connections[1].db.collectionNames(function(err, collections){
                         resolve(_.compact(_.map(collections, function(collection){
 
                             var collectionParts = collection.name.split(".");
@@ -35,7 +35,7 @@ describe('using mongodb + elastic search', function () {
 
                             if(name && (name !== "system") && db && (db === expectedDbName)){
                                 return new RSVP.Promise(function(resolve){
-                                    fortuneApp.adapter.mongoose.connections[1].db.collection(name, function(err, collection){
+                                    harvestApp.adapter.mongoose.connections[1].db.collection(name, function(err, collection){
                                         collection.remove({},null, function(){
                                             console.log("Wiped collection", name);
                                             resolve();
@@ -53,8 +53,8 @@ describe('using mongodb + elastic search', function () {
             }).then(function(){
                 console.log("Deleting elastic-search index.");
                 return new Promise(function (resolve) {
-                    request(_fortuneApp.options.es_url)
-                        .delete('/' + _fortuneApp.options.es_index)
+                    request(_harvestApp.options.es_url)
+                        .delete('/' + _harvestApp.options.es_index)
                         .send({})
                         .expect('Content-Type', /json/)
                         .end(function (error, response) {
@@ -69,8 +69,8 @@ describe('using mongodb + elastic search', function () {
             .then(function(){
                 console.log("Adding new elastic-search index.");
                 return new Promise(function (resolve) {
-                    request(_fortuneApp.options.es_url)
-                        .post('/' + _fortuneApp.options.es_index)
+                    request(_harvestApp.options.es_url)
+                        .post('/' + _harvestApp.options.es_index)
                         .send({})
                         .expect('Content-Type', /json/)
                         .end(function (error, response) {

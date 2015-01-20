@@ -1,6 +1,6 @@
 {
-  "name": "elastic-fortune",
-  "description": "Connects Elastic Search, fortune.js & mongodb in a jiff!",
+  "name": "elastic-harvest",
+  "description": "Connects Elastic Search, harvest.js & mongodb in a jiff!",
   "version": "0.0.9",
   "keywords": [
       "elasticsearch",
@@ -25,7 +25,7 @@
   },
 
   "devDependencies": {
-      "fortune-agco":"agco-adm/harvest#develop",
+      "harvest":"agco-adm/harvest#develop",
       "mocha": "~1.20.1",
       "should": "~4.0.4",
       "supertest": "~0.13.0"
@@ -47,9 +47,9 @@
     "email": "stephensebro@yahoo.com",
     "url": "http://github.com/ssebro/"
   },
-  "main": "./elastic-fortune.js",
+  "main": "./elastic-harvest.js",
   "files":[
-    "elastic-fortune.js",
+    "elastic-harvest.js",
     "LICENSE",
     "Util.js"
   ]

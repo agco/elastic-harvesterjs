@@ -18,11 +18,11 @@ var DEFAULT_AGGREGATION_LIMIT = 0;//0=>Integer.MAX_VALUE
 var DEFAULT_TOP_HITS_AGGREGATION_LIMIT = 10; //Cannot be zero. NOTE: Default number of responses in top_hit aggregation is 10.
 var DEFAULT_SIMPLE_SEARCH_LIMIT = 1000; //simple searches don't specify a limit, and are only used internally for autoupdating
 
-function ElasticFortune (fortune_app,es_url,index,type) {
+function ElasticHarvest(harvest_app,es_url,index,type) {
     var _this= this;
-    this.collectionLookup=getCollectionLookup(fortune_app,type);
-    this.adapter = fortune_app.adapter;
-    this.fortune_app = fortune_app;
+    this.collectionLookup=getCollectionLookup(harvest_app,type);
+    this.adapter = harvest_app.adapter;
+    this.harvest_app = harvest_app;
     this.es_url=es_url;
     this.index=index;
     this.type = type;
@@ -162,9 +162,9 @@ function ElasticFortune (fortune_app,es_url,index,type) {
         })
     }
 
-    //FortuneRoute is used to appendLinks & appendLinked.
-    this.setFortuneRoute = function(fortuneRoute){
-        this.fortuneRoute = fortuneRoute;
+    //HarvestRoute is used to appendLinks & appendLinked.
+    this.setHarvestRoute = function(harvestRoute){
+        this.harvestRoute = harvestRoute;
     }
 
     function getSourceObjects(aggResponse){
@@ -227,7 +227,7 @@ function ElasticFortune (fortune_app,es_url,index,type) {
                             })
                         }
                     } else {
-                        console.warn(linkProperty + " is not in collectionLookup. " + linkProperty + " was either incorrectly specified by the end-user, or dev failed to include the relevant key in the lookup provided to initialize elastic-fortune.");
+                        console.warn(linkProperty + " is not in collectionLookup. " + linkProperty + " was either incorrectly specified by the end-user, or dev failed to include the relevant key in the lookup provided to initialize elastic-harvest.");
                     }
                 })
             }
@@ -246,7 +246,7 @@ function ElasticFortune (fortune_app,es_url,index,type) {
             var esResponse = {};
             esResponse[type]= esResponseArray;
 
-            _this.fortuneRoute.appendLinked(esResponse,includes)
+            _this.harvestRoute.appendLinked(esResponse,includes)
                 .then(function(esResponse) {
 
                 //Add in meta.aggregations field
@@ -353,14 +353,14 @@ function ElasticFortune (fortune_app,es_url,index,type) {
                     });
                 }
 
-                    esResponse = _this.fortuneRoute.appendLinks(esResponse);
+                    esResponse = _this.harvestRoute.appendLinks(esResponse);
 
                 return res
                     .set('content-type', 'application/vnd.api+json') //todo set jsonapi ct
                     .status(200)
                     .send(JSON.stringify(esResponse,undefined, padding));
             }, function(error){
-                    esResponse = _this.fortuneRoute.appendLinks(esResponse);
+                    esResponse = _this.harvestRoute.appendLinks(esResponse);
 
                 return res
                     .set('content-type', 'application/vnd.api+json') //todo set jsonapi ct
@@ -472,7 +472,7 @@ function getResponseArrayFromESResults(results,fields){
 }
 
 
-ElasticFortune.prototype.getEsQueryBody = function (predicates, nestedPredicates, geoPredicate,aggregationObjects,sortParams) {
+ElasticHarvest.prototype.getEsQueryBody = function (predicates, nestedPredicates, geoPredicate,aggregationObjects,sortParams) {
 
     var createEsQueryFragment = function (fields, queryVal) {
 
@@ -854,9 +854,9 @@ ElasticFortune.prototype.getEsQueryBody = function (predicates, nestedPredicates
 
 //Todo: note if POSTS become much slower in production. If they do, drop POSTS from here - they're not really important.
 //Todo: Note that this does not cover deletes.
-ElasticFortune.prototype.enableAutoIndexUpdateOnModelUpdate = function (endpoint,idField) {
+ElasticHarvest.prototype.enableAutoIndexUpdateOnModelUpdate = function (endpoint,idField) {
     var _this = this;
-    this.fortune_app.after(endpoint, function (req, res, next) {
+    this.harvest_app.after(endpoint, function (req, res, next) {
         var entity = this;
         if (( req.method === 'POST' || req.method === 'PUT') && entity.id) {
             return _this.updateIndexForLinkedDocument(idField,entity);
@@ -865,7 +865,7 @@ ElasticFortune.prototype.enableAutoIndexUpdateOnModelUpdate = function (endpoint
         }
     });
 //                 //Todo: finish support for deletes.
-//    this.fortune_app.before(endpoint, function (req, res, next) {
+//    this.harvest_app.before(endpoint, function (req, res, next) {
 //        var entity = this;
 //        if ((req.method === 'DELETE') && entity.id) {
 //            return _this.updateIndexForLinkedDocument(idField,entity,req.method);
@@ -879,7 +879,7 @@ ElasticFortune.prototype.enableAutoIndexUpdateOnModelUpdate = function (endpoint
 ///Searches elastic search at idField for entity.id & triggers a reindex. If method is DELETE, it'll
 //handle the update specially, otherwise, you can ignore that param. Note that the delete param expects
 //that the idField ends in .id.
-ElasticFortune.prototype.updateIndexForLinkedDocument = function (idField,entity,method) {
+ElasticHarvest.prototype.updateIndexForLinkedDocument = function (idField,entity,method) {
     var _this = this;
     return _this.simpleSearch(idField,entity.id)
         .then(function(result){
@@ -914,7 +914,7 @@ ElasticFortune.prototype.updateIndexForLinkedDocument = function (idField,entity
 };
 
 //Takes a search predicate (or nested predicate) field & value and returns a promise for corresponding models.
-ElasticFortune.prototype.simpleSearch = function (field,value) {
+ElasticHarvest.prototype.simpleSearch = function (field,value) {
     var predicates=[];
     var nestedPredicates=[];
     if(field.indexOf(".")==-1){
@@ -946,7 +946,7 @@ ElasticFortune.prototype.simpleSearch = function (field,value) {
 
 /** Delete Related **/
 //delete: Just deletes the #id item of the initialized type.
-ElasticFortune.prototype.delete = function(id){
+ElasticHarvest.prototype.delete = function(id){
     var _this = this;
     var es_resource = this.es_url + '/'+this.index+'/'+this.type+'/'+id;
     return requestAsync({uri:es_resource, method: 'DELETE', body: ""}).then(function(response){
@@ -960,10 +960,10 @@ ElasticFortune.prototype.delete = function(id){
 
 
 /** POST RELATED **/
-//Note - only 1 "after" callback is allowed per endpoint, so if you enable autosync, you're giving it up to elastic-fortune.
-ElasticFortune.prototype.enableAutoSync= function(endpoint){
+//Note - only 1 "after" callback is allowed per endpoint, so if you enable autosync, you're giving it up to elastic-harvest.
+ElasticHarvest.prototype.enableAutoSync= function(endpoint){
     var _this = this;
-    this.fortune_app.after(endpoint, function (req, res, next) {
+    this.harvest_app.after(endpoint, function (req, res, next) {
         if (req.method === 'POST' || (req.method === 'PUT' && this.id)) {
             return _this.expandAndSync(this)
                 .then(function(response){
@@ -978,7 +978,7 @@ ElasticFortune.prototype.enableAutoSync= function(endpoint){
 //expandAndSync: will expand all links in the model, then push it to elastic search.
 //Works with one model or an array of models.
 //Todo: move to batch update model for multiples models.
-ElasticFortune.prototype.expandAndSync = function (models) {
+ElasticHarvest.prototype.expandAndSync = function (models) {
     var inputIsArray = _.isArray(models);
     models = [].concat(models);
     var _this = this;
@@ -991,7 +991,7 @@ ElasticFortune.prototype.expandAndSync = function (models) {
 }
 
 //sync: will push model to elastic search WITHOUT expanding any links.
-ElasticFortune.prototype.sync = function(model){
+ElasticHarvest.prototype.sync = function(model){
     var esBody = JSON.stringify(model);
     var _this = this;
     var options = {uri: this.es_url + '/'+this.index+'/'+this.type+'/' + model.id, body: esBody,pool:postPool};
@@ -1013,7 +1013,7 @@ ElasticFortune.prototype.sync = function(model){
     });
 };
 
-ElasticFortune.prototype.expandEntity = function (entity,depth){
+ElasticHarvest.prototype.expandEntity = function (entity,depth){
     if(entity==undefined)
         return;
     !depth && (depth=0);
@@ -1093,7 +1093,7 @@ ElasticFortune.prototype.expandEntity = function (entity,depth){
 }
 
 
-ElasticFortune.prototype.initializeIndex=function() {
+ElasticHarvest.prototype.initializeIndex=function() {
     var url = this.es_url + '/'+this.index;
     console.log("Initializing es index.");
     return requestAsync({uri:url, method: 'PUT', body:""}).then(function(response){
@@ -1107,7 +1107,7 @@ ElasticFortune.prototype.initializeIndex=function() {
 
 };
 
-ElasticFortune.prototype.deleteIndex=function() {
+ElasticHarvest.prototype.deleteIndex=function() {
     var url = this.es_url + '/'+this.index;
     console.log("Deleting es index.");
     return requestAsync({uri:url, method: 'DELETE', body:""}).then(function(response){
@@ -1124,7 +1124,7 @@ ElasticFortune.prototype.deleteIndex=function() {
 //Posts an elastic search mapping to the server.Idempotent, so feel free to do this when starting up your server,
 //but if you change the mapping in a way that elastic search can't apply a transform to the current index to get there,
 //you'll have to reload the entire search index with new data, because this will fail.
-ElasticFortune.prototype.initializeMapping=function(mapping,shouldNotRetry){
+ElasticHarvest.prototype.initializeMapping=function(mapping,shouldNotRetry){
 
     var _this = this;
     var reqBody = JSON.stringify(mapping);
@@ -1145,10 +1145,10 @@ ElasticFortune.prototype.initializeMapping=function(mapping,shouldNotRetry){
 };
 
 
-function getCollectionLookup(fortune_app,type){
+function getCollectionLookup(harvest_app,type){
 
     var schemaName = inflect.singularize(type);
-    var startingSchema = fortune_app._schema[schemaName];
+    var startingSchema = harvest_app._schema[schemaName];
     var retVal = {};
 
     function getLinkedSchemas(startingSchema){
@@ -1158,7 +1158,7 @@ function getCollectionLookup(fortune_app,type){
 
         function setValueAndGetLinkedSchemas(propertyName,propertyValue){
             retVal[propertyName]=propertyValue;
-            !linkedSchemas[propertyValue] && fortune_app._schema[propertyValue] && getLinkedSchemas(fortune_app._schema[propertyValue]);
+            !linkedSchemas[propertyValue] && harvest_app._schema[propertyValue] && getLinkedSchemas(harvest_app._schema[propertyValue]);
             linkedSchemas[propertyValue]=true;
         }
         _.each(startingSchema,function(property,propertyName){
@@ -1183,4 +1183,4 @@ function getCollectionLookup(fortune_app,type){
     return retVal;
 }
 
-module.exports = ElasticFortune;
+module.exports = ElasticHarvest;
