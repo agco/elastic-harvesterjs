@@ -25,8 +25,7 @@ Apart from that it also provides a number of helper functions to synchronize Har
 - Bootstrap Elasticsearch mapping file through REST endpoint
 
 ## Dependencies
- 
-TODO
+ElasticSearch v1.4.0+
 
 
 ## Usage
