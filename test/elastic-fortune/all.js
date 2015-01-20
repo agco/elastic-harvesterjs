@@ -15,7 +15,7 @@ _.each(fixtures, function (resources, collection) {
     keys[collection] = inflect.pluralize(collection);
 });
 
-describe('using mongodb adapter', function () {
+describe('using mongodb + elastic search', function () {
     var ids = {};
     var _fortuneApp;
     this.timeout(5000);
@@ -128,7 +128,8 @@ describe('using mongodb adapter', function () {
 //    require("./associations")(baseUrl,keys,ids);
 
     require("./limits")(baseUrl,keys,ids);
-//    require("./includes")(baseUrl,keys,ids);
+    require("./includes")(baseUrl,keys,ids,ES_INDEX_WAIT_TIME);
+    require("./filters")(baseUrl,keys,ids);
     require("./aggregations")(baseUrl,keys,ids,ES_INDEX_WAIT_TIME);
 
 

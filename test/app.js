@@ -15,8 +15,14 @@ function createApp(options) {
 
         .resource('pet', {
             name: String,
-            appearances: Number
+            appearances: Number,
+            toys:['toy']
         })
+
+        .resource('toy', {
+            name: String
+        })
+
 
     var peopleSearch = new ElasticFortune(fortuneApp, options.es_url,options.es_index, "people");
     fortuneApp.router.get('/people/search', peopleSearch.route);
