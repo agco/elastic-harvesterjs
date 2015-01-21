@@ -495,14 +495,16 @@ ElasticHarvest.prototype.getEsQueryBody = function (predicates, nestedPredicates
     var createMatchQueryFragment = function (field,value){
         var fragment;
         //Handle range queries (lt, le, gt, ge) differently.
-        var eqIndex = value.indexOf("=");
-        if(eqIndex!=-1){
+        if(value.indexOf("=")!=-1){
             var actualValue = value.substr(3);
             var operator = operatorMap[value.substr(0,2)];
             fragment = {"query": {"range": {}}};
             fragment["query"]["range"][field] = {};
             fragment["query"]["range"][field][operator] = actualValue;
 
+        }else if(value.indexOf("*")!=-1){
+            fragment = {"query": {"wildcard": {}}};
+            fragment["query"]["wildcard"][field] = value;
         }else {
             fragment = {"query": {"match": {}}};
             fragment["query"]["match"][field] = value;

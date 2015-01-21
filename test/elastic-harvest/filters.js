@@ -96,5 +96,17 @@ module.exports = function(baseUrl,keys,ids) {
                     done();
                 });
         });
+
+        it('should support wildcard queries', function (done) {
+            request(baseUrl).get('/people/search?name=d*')
+                .expect(200)
+                .end(function (err, res) {
+                    should.not.exist(err);
+                    var body = JSON.parse(res.text);
+                    (body.people.length).should.equal(1);
+                    (body.people[0].name).should.equal('Dilbert');
+                    done();
+                });
+        });
     });
 };
