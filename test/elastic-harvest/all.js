@@ -17,9 +17,8 @@ _.each(fixtures, function (resources, collection) {
 
 describe('using mongodb + elastic search', function () {
     var ids = {};
-    var _harvestApp;
     this.timeout(5000);
-
+    var _harvestApp;
     before(function (done) {
         this.app
             .then(function (harvestApp){
@@ -131,6 +130,7 @@ describe('using mongodb + elastic search', function () {
     require("./includes")(baseUrl,keys,ids,ES_INDEX_WAIT_TIME);
     require("./filters")(baseUrl,keys,ids);
     require("./aggregations")(baseUrl,keys,ids,ES_INDEX_WAIT_TIME);
+    require("./mapmaker")(_harvestApp,"people");
 
 
     after(function (done) {
