@@ -1152,16 +1152,22 @@ function getCollectionLookup(harvest_app,type){
     var schemaName = inflect.singularize(type);
     var startingSchema = harvest_app._schema[schemaName];
     var retVal = {};
+    var maxDepth=20;
+    var depth=0;
+    var linkedSchemas = {};
+    linkedSchemas[schemaName]=true;
 
     function getLinkedSchemas(startingSchema){
 
-        var linkedSchemas = {};
-        linkedSchemas[schemaName]=true;
+        depth++;
+        if (depth>=maxDepth){
+            console.warn("[Elastic-harvest] Graph depth of "+depth+" exceeds "+maxDepth+". Graph dive halted prematurely - please investigate.");//harvest schema may have circular references.
+            return;
+        }
 
         function setValueAndGetLinkedSchemas(propertyName,propertyValue){
             retVal[propertyName]=propertyValue;
-            !linkedSchemas[propertyValue] && harvest_app._schema[propertyValue] && getLinkedSchemas(harvest_app._schema[propertyValue]);
-            linkedSchemas[propertyValue]=true;
+            !linkedSchemas[propertyName] && harvest_app._schema[propertyValue] && (linkedSchemas[propertyName]=true) && getLinkedSchemas(harvest_app._schema[propertyValue]);
         }
         _.each(startingSchema,function(property,propertyName){
 
