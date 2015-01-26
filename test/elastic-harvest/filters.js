@@ -122,6 +122,15 @@ module.exports = function(baseUrl,keys,ids) {
                 });
         });
 
-
+        it('should support multi-value queries on numeric fields', function (done) {
+            request(baseUrl).get('/people/search?appearances=1934,3457')
+                .expect(200)
+                .end(function (err, res) {
+                    should.not.exist(err);
+                    var body = JSON.parse(res.text);
+                    (body.people.length).should.equal(2);
+                    done();
+                });
+        });
     });
 };

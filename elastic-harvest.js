@@ -510,8 +510,7 @@ ElasticHarvest.prototype.getEsQueryBody = function (predicates, nestedPredicates
         }else {
              var val = value.replace(/,/g," ");
              fragment = {"query": {"match": {}}};
-             fragment["query"]["match"][field] = val;
-
+             fragment["query"]["match"][field] = {query:val,lenient:true};
         }
         return fragment;
     };
