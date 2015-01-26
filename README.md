@@ -1,4 +1,4 @@
-[![Build Status](https://travis-ci.org/agco-adm/elastic-harvest.svg?branch=develop)](https://travis-ci.org/agco-adm/elastic-harvest)
+[![Build Status](https://travis-ci.org/agco/elastic-harvest.svg?branch=develop)](https://travis-ci.org/agco-adm/elastic-harvest)
 
 # Elastic-Harvest
 
