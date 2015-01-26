@@ -108,5 +108,20 @@ module.exports = function(baseUrl,keys,ids) {
                     done();
                 });
         });
+
+        it('should support multi-value queries', function (done) {
+            //NOTE: these ids will fail a basic match query lookup, while most other id values will not;
+            //they are specially selected and should be retained in any version of this test.
+            request(baseUrl).get('/people/search?id=547e53616773240200a89566,547e53616773240200a89531')
+                .expect(200)
+                .end(function (err, res) {
+                    should.not.exist(err);
+                    var body = JSON.parse(res.text);
+                    (body.people.length).should.equal(2);
+                    done();
+                });
+        });
+
+
     });
 };
