@@ -494,6 +494,8 @@ ElasticHarvest.prototype.getEsQueryBody = function (predicates, nestedPredicates
         };
     var createMatchQueryFragment = function (field,value){
         var fragment;
+        //ToDo: add "lenient" to support queries against numerical values.
+
         //Handle range queries (lt, le, gt, ge) differently.
         if(value.indexOf("=")!=-1){
             var actualValue = value.substr(3);
@@ -506,11 +508,13 @@ ElasticHarvest.prototype.getEsQueryBody = function (predicates, nestedPredicates
             fragment = {"query": {"wildcard": {}}};
             fragment["query"]["wildcard"][field] = value;
         }else {
-            fragment = {"query": {"match": {}}};
-            fragment["query"]["match"][field] = value;
+             var val = value.replace(/,/g," ");
+             fragment = {"query": {"match": {}}};
+             fragment["query"]["match"][field] = val;
+
         }
         return fragment;
-    }
+    };
     createEsQueryFragment = createMatchQueryFragment;
 
     /*-
