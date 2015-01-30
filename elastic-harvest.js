@@ -1019,6 +1019,9 @@ ElasticHarvest.prototype.sync = function(model){
 };
 
 ElasticHarvest.prototype.expandEntity = function (entity,depth){
+    if(depth>2)
+        return;
+
     if(entity==undefined)
         return;
     !depth && (depth=0);
