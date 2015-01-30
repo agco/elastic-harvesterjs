@@ -1021,7 +1021,7 @@ ElasticHarvest.prototype.sync = function(model){
 ElasticHarvest.prototype.expandEntity = function (entity,depth){
     if(depth>2)
         return;
-
+    console.log('[Elastic-harvest] Expanding entity at depth:'+depth);
     if(entity==undefined)
         return;
     !depth && (depth=0);
