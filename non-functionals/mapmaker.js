@@ -26,23 +26,31 @@ function getMapping(harvest_app,pov){
     retVal[pov]={"properties":{}};
     var cursor=retVal[pov]["properties"];
 
-    function getNextLevelSchema(propertyName,propertyValue,cursor,depth){
-        cursor["links"]=cursor["links"]||{"type":"nested"};
+    function getNextLevelSchema(propertyName,propertyValue,cursor,depth) {
+        var nextCursor;
 
-
-        cursor["links"]["properties"]=cursor["links"]["properties"]||{};
-        cursor["links"]["properties"][propertyName]={
-            "type":"nested",
-            "properties":{}
-        };
-
-        var nextCursor = cursor["links"]["properties"][propertyName]["properties"];
-
+        if (depth == 1) {
+            cursor["links"] = cursor["links"] || {"type": "nested"};
+            cursor["links"]["properties"] = cursor["links"]["properties"] || {};
+            cursor["links"]["properties"][propertyName] = {
+                "type": "nested",
+                "properties": {}
+            };
+            nextCursor = cursor["links"]["properties"][propertyName]["properties"];
+        }else {
+            if(depth==maxDepth){
+                return;
+            }
+            cursor[propertyName]={
+                "type":"nested",
+                "properties":{}
+            };
+            nextCursor = cursor[propertyName]["properties"];
+        }
         harvest_app._schema[propertyValue] && getLinkedSchemas(harvest_app._schema[propertyValue],nextCursor,depth);
     }
 
     function getLinkedSchemas(startingSchema,cursor,depth){
-        console.log(depth);
         if (depth>=maxDepth){
             console.warn("[Elastic-harvest] Graph depth of "+depth+" exceeds "+maxDepth+". Graph dive halted prematurely - please investigate.");//harvest schema may have circular references.
             return;
