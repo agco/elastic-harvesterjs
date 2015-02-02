@@ -8,7 +8,7 @@ module.exports = function(harvest_app,pov) {
     describe('mapmaker', function () {
         it('should be able to scaffold a mapping for a harvest app', function (done) {
             var mapping  = mapmaker.createMapping(harvest_app,pov);
-            console.log(mapping);
+            console.log(JSON.stringify(mapping));
             done();
         });
     });
