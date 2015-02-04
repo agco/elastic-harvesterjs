@@ -124,13 +124,13 @@ describe('using mongodb + elastic search', function () {
     });
 
 
-//    require("./resources")(baseUrl,keys,ids);
 //    require("./associations")(baseUrl,keys,ids);
 
     require("./limits")(baseUrl,keys,ids);
-    require("./includes")(baseUrl,keys,ids,ES_INDEX_WAIT_TIME);
-    require("./filters")(baseUrl,keys,ids);
-    require("./aggregations")(baseUrl,keys,ids,ES_INDEX_WAIT_TIME);
+    //require("./includes")(baseUrl,keys,ids,ES_INDEX_WAIT_TIME);
+    //require("./filters")(baseUrl,keys,ids);
+    //require("./aggregations")(baseUrl,keys,ids,ES_INDEX_WAIT_TIME);
+    require("./resources")(baseUrl,keys,ids,ES_INDEX_WAIT_TIME);
 
 
     after(function (done) {

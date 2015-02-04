@@ -16,7 +16,8 @@ function createApp(options) {
         .resource('pet', {
             name: String,
             appearances: Number,
-            toys:['toy']
+            toys:['toy'],
+            friends:['pet']
         })
 
         .resource('toy', {
