@@ -50,40 +50,7 @@ describe('using mongodb + elastic search', function () {
             }).then(function(wipeFns){
                 console.log("Wiping collections:");
                 return RSVP.all(wipeFns);
-            }).then(function(){
-                console.log("Deleting elastic-search index.");
-                return new Promise(function (resolve) {
-                    request(_harvestApp.options.es_url)
-                        .delete('/' + _harvestApp.options.es_index)
-                        .send({})
-                        .expect('Content-Type', /json/)
-                        .end(function (error, response) {
-                            should.not.exist(error);
-                            var body = JSON.parse(response.text);
-                            resolve();
-                        });
-                })
-
-            })
-
-            .then(function(){
-                console.log("Adding new elastic-search index.");
-                return new Promise(function (resolve) {
-                    request(_harvestApp.options.es_url)
-                        .post('/' + _harvestApp.options.es_index)
-                        .send({})
-                        .expect('Content-Type', /json/)
-                        .end(function (error, response) {
-                            should.not.exist(error);
-                            var body = JSON.parse(response.text);
-                            resolve();
-                        });
-                })
-            })
-
-
-
-            .then(function () {
+            }).then(function () {
                 console.log("--------------------");
                 console.log("Running tests:");
 
@@ -124,13 +91,12 @@ describe('using mongodb + elastic search', function () {
     });
 
 
-//    require("./associations")(baseUrl,keys,ids);
-
+    require("./associations")(baseUrl,keys,ids,ES_INDEX_WAIT_TIME);
     require("./limits")(baseUrl,keys,ids);
-    //require("./includes")(baseUrl,keys,ids,ES_INDEX_WAIT_TIME);
-    //require("./filters")(baseUrl,keys,ids);
-    //require("./aggregations")(baseUrl,keys,ids,ES_INDEX_WAIT_TIME);
-    require("./resources")(baseUrl,keys,ids,ES_INDEX_WAIT_TIME);
+    require("./includes")(baseUrl,keys,ids,ES_INDEX_WAIT_TIME);
+    require("./filters")(baseUrl,keys,ids);
+    require("./aggregations")(baseUrl,keys,ids,ES_INDEX_WAIT_TIME);
+    //require("./resources")(baseUrl,keys,ids,ES_INDEX_WAIT_TIME);
 
 
     after(function (done) {
