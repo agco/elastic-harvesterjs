@@ -17,8 +17,12 @@ postPool.maxSockets = 1;
 var DEFAULT_AGGREGATION_LIMIT = 0;//0=>Integer.MAX_VALUE
 var DEFAULT_TOP_HITS_AGGREGATION_LIMIT = 10; //Cannot be zero. NOTE: Default number of responses in top_hit aggregation is 10.
 var DEFAULT_SIMPLE_SEARCH_LIMIT = 1000; //simple searches don't specify a limit, and are only used internally for autoupdating
-
-function ElasticHarvest(harvest_app,es_url,index,type) {
+var defaultOptions = {
+   graphDepth:{
+       default:3
+   }
+};
+function ElasticHarvest(harvest_app,es_url,index,type,options) {
     var _this= this;
     this.collectionLookup=getCollectionLookup(harvest_app,type);
     this.adapter = harvest_app.adapter;
@@ -26,6 +30,7 @@ function ElasticHarvest(harvest_app,es_url,index,type) {
     this.es_url=es_url;
     this.index=index;
     this.type = type;
+    this.options = _.merge(defaultOptions,options);
 
     /** SEARCH RELATED **/
     this.route = function (req, res, next){
@@ -1018,10 +1023,16 @@ ElasticHarvest.prototype.sync = function(model){
     });
 };
 
-ElasticHarvest.prototype.expandEntity = function (entity,depth){
-    if(depth>2)
+function depthIsInScope(options,depth,currentPath){
+    if(depth>options.graphDepth.default)
+        return false;
+    return true;
+}
+
+ElasticHarvest.prototype.expandEntity = function (entity,depth,currentPath){
+    if(!depthIsInScope(this.options,depth,currentPath)){
         return;
-    console.log('[Elastic-harvest] Expanding entity at depth:'+depth);
+    }
     if(entity==undefined)
         return;
     !depth && (depth=0);
