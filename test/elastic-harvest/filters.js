@@ -9,7 +9,7 @@ module.exports = function(baseUrl,keys,ids) {
 
     describe("filters", function() {
         it("should allow top-level resource filtering for search route", function (done) {
-            request(baseUrl).get('/people/search?name=dilbert')
+            request(baseUrl).get('/people/search?name=Dilbert')
                 .expect('Content-Type', /json/)
                 .expect(200)
                 .end(function (error, response) {
@@ -32,7 +32,7 @@ module.exports = function(baseUrl,keys,ids) {
                 });
         });
         it("should allow combining top-level resource filtering for search route based on string & numeric values", function (done) {
-            request(baseUrl).get('/people/search?name=dilbert&appearances=3457')
+            request(baseUrl).get('/people/search?name=Dilbert&appearances=3457')
                 .expect('Content-Type', /json/)
                 .expect(200)
                 .end(function (error, response) {
@@ -44,7 +44,7 @@ module.exports = function(baseUrl,keys,ids) {
         });
         it.skip("should allow resource sub-document filtering", function (done) {
             //add mapping & do nesting to enable this.
-            request(baseUrl).get("/people/search?links.pets.name=dogbert")
+            request(baseUrl).get("/people/search?links.pets.name=Dogbert")
                 .end(function (err, response) {
                     should.not.exist(error);
                     var body = JSON.parse(response.text);
@@ -98,7 +98,7 @@ module.exports = function(baseUrl,keys,ids) {
         });
 
         it('should support wildcard queries', function (done) {
-            request(baseUrl).get('/people/search?name=d*')
+            request(baseUrl).get('/people/search?name=D*')
                 .expect(200)
                 .end(function (err, res) {
                     should.not.exist(err);
