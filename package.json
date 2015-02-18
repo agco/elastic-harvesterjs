@@ -25,7 +25,7 @@
   },
 
   "devDependencies": {
-      "harvest":"agco-adm/harvest#develop",
+      "harvester":"agco-adm/harvester#develop",
       "mocha": "~1.20.1",
       "should": "~4.0.4",
       "supertest": "~0.13.0"
