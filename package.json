@@ -1,5 +1,5 @@
 {
-  "name": "elastic-harvest",
+  "name": "elastic-harvester",
   "description": "Connects Elastic Search, harvest.js & mongodb in a jiff!",
   "version": "0.0.9",
   "keywords": [
