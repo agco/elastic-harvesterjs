@@ -1,5 +1,5 @@
 {
-  "name": "elastic-harvester",
+  "name": "elastic-harvesterjs",
   "description": "Connects Elastic Search, harvest.js & mongodb in a jiff!",
   "version": "0.0.9",
   "keywords": [
@@ -47,9 +47,9 @@
     "email": "stephensebro@yahoo.com",
     "url": "http://github.com/ssebro/"
   },
-  "main": "./elastic-harvest.js",
+  "main": "./elastic-harvester.js",
   "files":[
-    "elastic-harvest.js",
+    "elastic-harvester.js",
     "LICENSE",
     "Util.js"
   ]
