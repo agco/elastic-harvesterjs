@@ -1,6 +1,6 @@
-var harvest = require('harvest');
+var harvest = require('harvesterjs');
 var RSVP = require('rsvp');
-var ElasticHarvest = require('../elastic-harvest');
+var ElasticHarvest = require('../elastic-harvester');
 
 function createApp(options) {
     var harvestApp = harvest(options)
