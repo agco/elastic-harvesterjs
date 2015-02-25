@@ -5,7 +5,7 @@ var type = process.argv[3] || uri.substr(uri.lastIndexOf('/')+1,uri.length);
 var request = Promise.promisify(require('request'));
 var headers = {'content-type': 'application/vnd.api+json'};
 
-var MAX_ENTITIES_TO_PROCESS = 10000;
+var MAX_ENTITIES_TO_PROCESS = 1200;
 
 /*
    This little tool reloads the search-providing endpoint, which is useful for reloading/populating your search index.
@@ -37,8 +37,10 @@ var logEntities = function(entities){
 var massUpdate = function(entities){
     var promises = _.map(entities[type]||[],function(model){
         var putBody={};
+        var id = model.id;
+        delete model.id;
         putBody[type]=[model];
-        return do_request(uri+"/"+model.id, "PUT", putBody).then(function(result){
+        return do_request(uri+"/"+id, "PUT", putBody).then(function(result){
             var body = JSON.parse(result[0].body);
             if(body.error){
                 console.warn(JSON.stringify(body));
