@@ -8,11 +8,13 @@ var headers = {'content-type': 'application/vnd.api+json'};
 var MAX_ENTITIES_TO_PROCESS = 1200;
 
 /*
-   This little tool reloads the search-providing endpoint, which is useful for reloading/populating your search index.
+ *** Elastic-Search index reloader. ***
+ * -------------------------------- *
+ Reload elastic-search index from a related mongo-powered harvester endpoint.
+ Meant to be run @cmd line, but can also be required and used in code.
 
-   Usage: node reload.js http://localhost:8081/dealers "dealers"
-
-   argv[3] (in this case, "dealers") is optional. If not specified, defaults to the part of the url after the last "/".
+ #Usage: node reload.js http://localhost:8081/dealers "dealers"
+   NB: argv[3] (in this case, "dealers") is optional. If not specified, defaults to the part of the url after the last "/".
  */
 
 var do_request = function (path, method, body) {
@@ -27,13 +29,13 @@ var getEntities =  function(){
     return do_request(uri+"?limit="+MAX_ENTITIES_TO_PROCESS, "GET", {}).then(function(response){
        return JSON.parse(response[0].body);
     });
-}
+};
 
 var logEntities = function(entities){
     console.log(JSON.stringify(_.map(entities[type]||[],function(model){
         return model.id;
     })));
-}
+};
 var massUpdate = function(entities){
     var promises = _.map(entities[type]||[],function(model){
         var putBody={};
@@ -69,6 +71,6 @@ Promise.resolve()
     })
     .then(function (results) {
         process.exit(0);
-    })
+    });
 
 
