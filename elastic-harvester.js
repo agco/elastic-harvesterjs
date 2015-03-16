@@ -1136,7 +1136,7 @@ ElasticHarvest.prototype.deleteIndex=function() {
     return requestAsync({uri:url, method: 'DELETE', body:""}).then(function(response){
         var body = JSON.parse(response[1]);
         if(body.error){
-            if(_s.startsWith(body.error,"IndexMissingException")){
+            if(_s.contains(body.error,"IndexMissingException")){
                 console.warn("[Elastic-Harvest] Tried to delete the index, but it was already gone!");
                 return body;
             }else{
