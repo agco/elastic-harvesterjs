@@ -24,9 +24,13 @@ var defaultOptions = {
 };
 function ElasticHarvest(harvest_app,es_url,index,type,options) {
     var _this= this;
-    this.collectionLookup=getCollectionLookup(harvest_app,type);
-    this.adapter = harvest_app.adapter;
-    this.harvest_app = harvest_app;
+    if(harvest_app){
+        this.collectionLookup=getCollectionLookup(harvest_app,type);
+        this.adapter = harvest_app.adapter;
+        this.harvest_app = harvest_app;
+    }else{
+        console.warn("[Elastic-Harvest] Using elastic-harvester without a harvest-app. Functionality will be limited.");
+    }
     this.es_url=es_url;
     this.index=index;
     this.type = type;
@@ -87,7 +91,7 @@ function ElasticHarvest(harvest_app,es_url,index,type,options) {
         terms:["type","order","aggregations","property"],
         stats:["type","property"],
         extended_stats:["type","property"]
-    }
+    };
 
     function setValueIfExists(obj,property,val,fn){
         (val) && (fn?fn(val,property):true) && (obj[property] = val);
