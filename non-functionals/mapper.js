@@ -2,17 +2,18 @@ var Promise = require('bluebird');
 var _ = require('lodash');
 var _s = require('underscore.string');
 var $http = require('http-as-promised');
-
-
-var runningAsScript = !module.parent;
-
 var ElasticHarvester = require("../elastic-harvester");
 
 var permittedOptions = ["get","add","delete","update"];
+var runningAsScript = !module.parent;
 
 /*
 
-Elastic-search mapping helper. Get, Add, remove, update and create scaffolded elastic-search mappings.
+*** Elastic-Search mapping helper. ***
+* -------------------------------- *
+Get, add, delete, and update elastic-search mappings.
+Meant to be run @cmd line, but can also be required and used in code.
+
 
 ADD
 #Usage: node mapper.js add http://localhost:9200 dealer-api dealers path-to-new-mapping-json
