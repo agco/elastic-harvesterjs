@@ -8,6 +8,10 @@ This library ties together [Harvest](https://github.com/agco-adm/elastic-harvest
 
 Apart from that it also provides a number of helper functions to synchronize Harvest / Mongodb resources with an Elasticsearch backend.
 
+### Elastic-Search Tools
+
+Find useful elastic-search tools as well as their documentation in /non-functionals.
+
 
 ## Features
 
