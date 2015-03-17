@@ -38,7 +38,7 @@ module.exports = function(baseUrl,keys,ids,ES_INDEX_WAIT_TIME) {
                             names[value["key"]]=true;
                         });
                         _.each(fixtures.person,function(person){
-                            should.exist(names[person.name.toLowerCase()]);
+                            should.exist(names[person.name]);
                         });
                         done();
                     });

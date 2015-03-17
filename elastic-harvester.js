@@ -17,15 +17,24 @@ postPool.maxSockets = 1;
 var DEFAULT_AGGREGATION_LIMIT = 0;//0=>Integer.MAX_VALUE
 var DEFAULT_TOP_HITS_AGGREGATION_LIMIT = 10; //Cannot be zero. NOTE: Default number of responses in top_hit aggregation is 10.
 var DEFAULT_SIMPLE_SEARCH_LIMIT = 1000; //simple searches don't specify a limit, and are only used internally for autoupdating
-
-function ElasticHarvest(harvest_app,es_url,index,type) {
+var defaultOptions = {
+   graphDepth:{
+       default:3
+   }
+};
+function ElasticHarvest(harvest_app,es_url,index,type,options) {
     var _this= this;
-    this.collectionLookup=getCollectionLookup(harvest_app,type);
-    this.adapter = harvest_app.adapter;
-    this.harvest_app = harvest_app;
+    if(harvest_app){
+        this.collectionLookup=getCollectionLookup(harvest_app,type);
+        this.adapter = harvest_app.adapter;
+        this.harvest_app = harvest_app;
+    }else{
+        console.warn("[Elastic-Harvest] Using elastic-harvester without a harvest-app. Functionality will be limited.");
+    }
     this.es_url=es_url;
     this.index=index;
     this.type = type;
+    this.options = _.merge(defaultOptions,options);
 
     /** SEARCH RELATED **/
     this.route = function (req, res, next){
@@ -82,7 +91,7 @@ function ElasticHarvest(harvest_app,es_url,index,type) {
         terms:["type","order","aggregations","property"],
         stats:["type","property"],
         extended_stats:["type","property"]
-    }
+    };
 
     function setValueIfExists(obj,property,val,fn){
         (val) && (fn?fn(val,property):true) && (obj[property] = val);
@@ -227,7 +236,7 @@ function ElasticHarvest(harvest_app,es_url,index,type) {
                             })
                         }
                     } else {
-                        console.warn(linkProperty + " is not in collectionLookup. " + linkProperty + " was either incorrectly specified by the end-user, or dev failed to include the relevant key in the lookup provided to initialize elastic-harvest.");
+                        console.warn("[Elastic-Harvest] "+ linkProperty + " is not in collectionLookup. " + linkProperty + " was either incorrectly specified by the end-user, or dev failed to include the relevant key in the lookup provided to initialize elastic-harvest.");
                     }
                 })
             }
@@ -494,6 +503,8 @@ ElasticHarvest.prototype.getEsQueryBody = function (predicates, nestedPredicates
         };
     var createMatchQueryFragment = function (field,value){
         var fragment;
+        //ToDo: add "lenient" to support queries against numerical values.
+
         //Handle range queries (lt, le, gt, ge) differently.
         if(value.indexOf("=")!=-1){
             var actualValue = value.substr(3);
@@ -506,11 +517,12 @@ ElasticHarvest.prototype.getEsQueryBody = function (predicates, nestedPredicates
             fragment = {"query": {"wildcard": {}}};
             fragment["query"]["wildcard"][field] = value;
         }else {
-            fragment = {"query": {"match": {}}};
-            fragment["query"]["match"][field] = value;
+             var val = value.replace(/,/g," ");
+             fragment = {"query": {"match": {}}};
+             fragment["query"]["match"][field] = {query:val,lenient:true};
         }
         return fragment;
-    }
+    };
     createEsQueryFragment = createMatchQueryFragment;
 
     /*-
@@ -637,7 +649,7 @@ ElasticHarvest.prototype.getEsQueryBody = function (predicates, nestedPredicates
                         var matchObj = innerQuery.nested.query.match;
                         var values = _.values(matchObj);
                         if(values.length>1){
-                            console.warn("Our match query isn't supposed to have multiple keys in it. We expect something like {match:{name:'Peter'}}, and you've constructed a match like {match:{name:'Peter',type:'person'}}");
+                            console.warn("[Elastic-Harvest] Our match query isn't supposed to have multiple keys in it. We expect something like {match:{name:'Peter'}}, and you've constructed a match like {match:{name:'Peter',type:'person'}}");
                             throw Error("The query expansion algorithm does not expect this query form.")
                         }
                         if(_.isArray(values[0])){
@@ -1003,7 +1015,7 @@ ElasticHarvest.prototype.sync = function(model){
             body = JSON.parse(body);
             if (error || body.error) {
                 var errMsg = error?error.message?error.message:JSON.stringify(error):JSON.stringify(body.error);
-                console.warn("es_sync failed on model "+model.id+" :",errMsg);
+                console.warn("[Elastic-Harvest] es_sync failed on model "+model.id+" :",errMsg);
                 reject(error || body);
             } else {
                 resolve(model);
@@ -1015,7 +1027,16 @@ ElasticHarvest.prototype.sync = function(model){
     });
 };
 
-ElasticHarvest.prototype.expandEntity = function (entity,depth){
+function depthIsInScope(options,depth,currentPath){
+    if(depth>options.graphDepth.default)
+        return false;
+    return true;
+}
+
+ElasticHarvest.prototype.expandEntity = function (entity,depth,currentPath){
+    if(!depthIsInScope(this.options,depth,currentPath)){
+        return;
+    }
     if(entity==undefined)
         return;
     !depth && (depth=0);
@@ -1049,7 +1070,7 @@ ElasticHarvest.prototype.expandEntity = function (entity,depth){
                 throw new Error(errorMessage);
             });
         }else{
-            console.warn("Failed to find the name of the collection with "+key +" in it.");
+            console.warn("[Elastic-Harvest] Failed to find the name of the collection with "+key +" in it.");
         }
     },this);
 
@@ -1097,7 +1118,7 @@ ElasticHarvest.prototype.expandEntity = function (entity,depth){
 
 ElasticHarvest.prototype.initializeIndex=function() {
     var url = this.es_url + '/'+this.index;
-    console.log("Initializing es index.");
+    console.log("[Elastic-Harvest] Initializing es index.");
     return requestAsync({uri:url, method: 'PUT', body:""}).then(function(response){
         var body = JSON.parse(response[1]);
         if(body.error){
@@ -1111,11 +1132,16 @@ ElasticHarvest.prototype.initializeIndex=function() {
 
 ElasticHarvest.prototype.deleteIndex=function() {
     var url = this.es_url + '/'+this.index;
-    console.log("Deleting es index.");
+    console.log("[Elastic-Harvest] Deleting es index.");
     return requestAsync({uri:url, method: 'DELETE', body:""}).then(function(response){
         var body = JSON.parse(response[1]);
         if(body.error){
-            throw new Error(response[1]);
+            if(_s.contains(body.error,"IndexMissingException")){
+                console.warn("[Elastic-Harvest] Tried to delete the index, but it was already gone!");
+                return body;
+            }else{
+                throw new Error(response[1]);
+            }
         }else{
             return body;
         }
@@ -1135,7 +1161,7 @@ ElasticHarvest.prototype.initializeMapping=function(mapping,shouldNotRetry){
         var body = JSON.parse(response[1]);
         if(body.error){
             if(_s.startsWith(body.error,"IndexMissingException") && !shouldNotRetry){
-                console.warn("Looks like we need to create an index - I'll handle that automatically for you & will retry adding the mapping afterward.")
+                console.warn("[Elastic-Harvest] Looks like we need to create an index - I'll handle that automatically for you & will retry adding the mapping afterward.");
                 return _this.initializeIndex().then(function(){return _this.initializeMapping(mapping,true)});
             }else{
                 throw new Error(response[1]);
@@ -1161,7 +1187,7 @@ function getCollectionLookup(harvest_app,type){
 
         depth++;
         if (depth>=maxDepth){
-            console.warn("[Elastic-harvest] Graph depth of "+depth+" exceeds "+maxDepth+". Graph dive halted prematurely - please investigate.");//harvest schema may have circular references.
+            console.warn("[Elastic-Harvest] Graph depth of "+depth+" exceeds "+maxDepth+". Graph dive halted prematurely - please investigate.");//harvest schema may have circular references.
             return;
         }
 

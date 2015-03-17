@@ -1,4 +1,4 @@
-[![Build Status](https://travis-ci.org/agco-adm/elastic-harvest.svg?branch=develop)](https://travis-ci.org/agco-adm/elastic-harvest)
+[![Build Status](https://travis-ci.org/agco/elastic-harvest.svg?branch=develop)](https://travis-ci.org/agco-adm/elastic-harvest)
 
 # Elastic-Harvest
 
@@ -7,6 +7,10 @@ Elastic-Harvest is a Nodejs implementation of the [JSON API Search Profile](http
 This library ties together [Harvest](https://github.com/agco-adm/elastic-harvest) and Elasticsearch to offer the required [linked resource filtering and aggregation](https://github.com/agco-adm/json-api-search-profile/blob/master/public/profile.md) features.
 
 Apart from that it also provides a number of helper functions to synchronize Harvest / Mongodb resources with an Elasticsearch backend.
+
+### Elastic-Search Tools
+
+Find useful elastic-search tools as well as their documentation in /non-functionals.
 
 
 ## Features

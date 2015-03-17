@@ -1,5 +1,5 @@
 {
-  "name": "elastic-harvest",
+  "name": "elastic-harvesterjs",
   "description": "Connects Elastic Search, harvest.js & mongodb in a jiff!",
   "version": "0.0.9",
   "keywords": [
@@ -21,11 +21,12 @@
     "underscore.string": "~2.3.2",
     "rsvp": "~3.0.14",
     "bluebird": "~2.3.2",
-    "i": "~0.3.2"
+    "i": "~0.3.2",
+    "http-as-promised":"0.1.x"
   },
 
   "devDependencies": {
-      "harvest":"agco-adm/harvest#develop",
+      "harvester":"agco/harvesterjs#develop",
       "mocha": "~1.20.1",
       "should": "~4.0.4",
       "supertest": "~0.13.0"
@@ -47,9 +48,9 @@
     "email": "stephensebro@yahoo.com",
     "url": "http://github.com/ssebro/"
   },
-  "main": "./elastic-harvest.js",
+  "main": "./elastic-harvester.js",
   "files":[
-    "elastic-harvest.js",
+    "elastic-harvester.js",
     "LICENSE",
     "Util.js"
   ]

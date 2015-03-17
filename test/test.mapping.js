@@ -1,4 +1,4 @@
-module.exports = {
+module.exports={
     "people": {
         "properties": {
             "name": {
@@ -21,15 +21,43 @@ module.exports = {
                             "appearances": {
                                 "type": "long"
                             },
-                            "links": {
+                            "toys": {
                                 "type": "nested",
                                 "properties": {
+                                    "name": {
+                                        "type": "string",
+                                        "index": "not_analyzed"
+                                    }
+                                }
+                            },
+                            "friends": {
+                                "type": "nested",
+                                "properties": {
+                                    "name": {
+                                        "type": "string",
+                                        "index": "not_analyzed"
+                                    },
+                                    "appearances": {
+                                        "type": "long"
+                                    },
                                     "toys": {
                                         "type": "nested",
                                         "properties": {
                                             "name": {
                                                 "type": "string",
                                                 "index": "not_analyzed"
+                                            }
+                                        }
+                                    },
+                                    "friends": {
+                                        "type": "nested",
+                                        "properties": {
+                                            "name": {
+                                                "type": "string",
+                                                "index": "not_analyzed"
+                                            },
+                                            "appearances": {
+                                                "type": "long"
                                             }
                                         }
                                     }
@@ -47,9 +75,49 @@ module.exports = {
                             "appearances": {
                                 "type": "long"
                             },
-                            "links": {
+                            "pets": {
                                 "type": "nested",
                                 "properties": {
+                                    "name": {
+                                        "type": "string",
+                                        "index": "not_analyzed"
+                                    },
+                                    "appearances": {
+                                        "type": "long"
+                                    },
+                                    "toys": {
+                                        "type": "nested",
+                                        "properties": {
+                                            "name": {
+                                                "type": "string",
+                                                "index": "not_analyzed"
+                                            }
+                                        }
+                                    },
+                                    "friends": {
+                                        "type": "nested",
+                                        "properties": {
+                                            "name": {
+                                                "type": "string",
+                                                "index": "not_analyzed"
+                                            },
+                                            "appearances": {
+                                                "type": "long"
+                                            }
+                                        }
+                                    }
+                                }
+                            },
+                            "soulmate": {
+                                "type": "nested",
+                                "properties": {
+                                    "name": {
+                                        "type": "string",
+                                        "index": "not_analyzed"
+                                    },
+                                    "appearances": {
+                                        "type": "long"
+                                    },
                                     "pets": {
                                         "type": "nested",
                                         "properties": {
@@ -59,20 +127,6 @@ module.exports = {
                                             },
                                             "appearances": {
                                                 "type": "long"
-                                            },
-                                            "links": {
-                                                "type": "nested",
-                                                "properties": {
-                                                    "toys": {
-                                                        "type": "nested",
-                                                        "properties": {
-                                                            "name": {
-                                                                "type": "string",
-                                                                "index": "not_analyzed"
-                                                            }
-                                                        }
-                                                    }
-                                                }
                                             }
                                         }
                                     },
@@ -85,36 +139,67 @@ module.exports = {
                                             },
                                             "appearances": {
                                                 "type": "long"
-                                            },
-                                            "links": {
-                                                "type": "nested",
-                                                "properties": {
-                                                    "pets": {
-                                                        "type": "nested",
-                                                        "properties": {
-
-                                                        }
-                                                    },
-                                                    "soulmate": {
-                                                        "type": "nested",
-                                                        "properties": {
-
-                                                        }
-                                                    },
-                                                    "lovers": {
-                                                        "type": "nested",
-                                                        "properties": {
-
-                                                        }
-                                                    }
-                                                }
                                             }
                                         }
                                     },
                                     "lovers": {
                                         "type": "nested",
                                         "properties": {
-
+                                            "name": {
+                                                "type": "string",
+                                                "index": "not_analyzed"
+                                            },
+                                            "appearances": {
+                                                "type": "long"
+                                            }
+                                        }
+                                    }
+                                }
+                            },
+                            "lovers": {
+                                "type": "nested",
+                                "properties": {
+                                    "name": {
+                                        "type": "string",
+                                        "index": "not_analyzed"
+                                    },
+                                    "appearances": {
+                                        "type": "long"
+                                    },
+                                    "pets": {
+                                        "type": "nested",
+                                        "properties": {
+                                            "name": {
+                                                "type": "string",
+                                                "index": "not_analyzed"
+                                            },
+                                            "appearances": {
+                                                "type": "long"
+                                            }
+                                        }
+                                    },
+                                    "soulmate": {
+                                        "type": "nested",
+                                        "properties": {
+                                            "name": {
+                                                "type": "string",
+                                                "index": "not_analyzed"
+                                            },
+                                            "appearances": {
+                                                "type": "long"
+                                            }
+                                        }
+                                    },
+                                    "lovers": {
+                                        "type": "nested",
+                                        "properties": {
+                                            "name": {
+                                                "type": "string",
+                                                "index": "not_analyzed"
+                                            },
+                                            "appearances": {
+                                                "type": "long"
+                                            }
                                         }
                                     }
                                 }
@@ -125,6 +210,142 @@ module.exports = {
                         "type": "nested",
                         "properties": {
 
+                            "name": {
+                                "type": "string",
+                                "index": "not_analyzed"
+                            },
+                            "appearances": {
+                                "type": "long"
+                            },
+                            "pets": {
+                                "type": "nested",
+                                "properties": {
+                                    "name": {
+                                        "type": "string",
+                                        "index": "not_analyzed"
+                                    },
+                                    "appearances": {
+                                        "type": "long"
+                                    },
+                                    "toys": {
+                                        "type": "nested",
+                                        "properties": {
+                                            "name": {
+                                                "type": "string",
+                                                "index": "not_analyzed"
+                                            }
+                                        }
+                                    },
+                                    "friends": {
+                                        "type": "nested",
+                                        "properties": {
+                                            "name": {
+                                                "type": "string",
+                                                "index": "not_analyzed"
+                                            },
+                                            "appearances": {
+                                                "type": "long"
+                                            }
+                                        }
+                                    }
+                                }
+                            },
+                            "soulmate": {
+                                "type": "nested",
+                                "properties": {
+                                    "name": {
+                                        "type": "string",
+                                        "index": "not_analyzed"
+                                    },
+                                    "appearances": {
+                                        "type": "long"
+                                    },
+                                    "pets": {
+                                        "type": "nested",
+                                        "properties": {
+                                            "name": {
+                                                "type": "string",
+                                                "index": "not_analyzed"
+                                            },
+                                            "appearances": {
+                                                "type": "long"
+                                            }
+                                        }
+                                    },
+                                    "soulmate": {
+                                        "type": "nested",
+                                        "properties": {
+                                            "name": {
+                                                "type": "string",
+                                                "index": "not_analyzed"
+                                            },
+                                            "appearances": {
+                                                "type": "long"
+                                            }
+                                        }
+                                    },
+                                    "lovers": {
+                                        "type": "nested",
+                                        "properties": {
+                                            "name": {
+                                                "type": "string",
+                                                "index": "not_analyzed"
+                                            },
+                                            "appearances": {
+                                                "type": "long"
+                                            }
+                                        }
+                                    }
+                                }
+                            },
+                            "lovers": {
+                                "type": "nested",
+                                "properties": {
+                                    "name": {
+                                        "type": "string",
+                                        "index": "not_analyzed"
+                                    },
+                                    "appearances": {
+                                        "type": "long"
+                                    },
+                                    "pets": {
+                                        "type": "nested",
+                                        "properties": {
+                                            "name": {
+                                                "type": "string",
+                                                "index": "not_analyzed"
+                                            },
+                                            "appearances": {
+                                                "type": "long"
+                                            }
+                                        }
+                                    },
+                                    "soulmate": {
+                                        "type": "nested",
+                                        "properties": {
+                                            "name": {
+                                                "type": "string",
+                                                "index": "not_analyzed"
+                                            },
+                                            "appearances": {
+                                                "type": "long"
+                                            }
+                                        }
+                                    },
+                                    "lovers": {
+                                        "type": "nested",
+                                        "properties": {
+                                            "name": {
+                                                "type": "string",
+                                                "index": "not_analyzed"
+                                            },
+                                            "appearances": {
+                                                "type": "long"
+                                            }
+                                        }
+                                    }
+                                }
+                            }
                         }
                     }
                 }
