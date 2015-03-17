@@ -1161,7 +1161,7 @@ ElasticHarvest.prototype.initializeMapping=function(mapping,shouldNotRetry){
         var body = JSON.parse(response[1]);
         if(body.error){
             if(_s.startsWith(body.error,"IndexMissingException") && !shouldNotRetry){
-                console.warn("[Elastic-Harvest] Looks like we need to create an index - I'll handle that automatically for you & will retry adding the mapping afterward.")
+                console.warn("[Elastic-Harvest] Looks like we need to create an index - I'll handle that automatically for you & will retry adding the mapping afterward.");
                 return _this.initializeIndex().then(function(){return _this.initializeMapping(mapping,true)});
             }else{
                 throw new Error(response[1]);
