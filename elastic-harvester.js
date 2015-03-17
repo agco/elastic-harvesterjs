@@ -24,9 +24,13 @@ var defaultOptions = {
 };
 function ElasticHarvest(harvest_app,es_url,index,type,options) {
     var _this= this;
-    this.collectionLookup=getCollectionLookup(harvest_app,type);
-    this.adapter = harvest_app.adapter;
-    this.harvest_app = harvest_app;
+    if(harvest_app){
+        this.collectionLookup=getCollectionLookup(harvest_app,type);
+        this.adapter = harvest_app.adapter;
+        this.harvest_app = harvest_app;
+    }else{
+        console.warn("[Elastic-Harvest] Using elastic-harvester without a harvest-app. Functionality will be limited.");
+    }
     this.es_url=es_url;
     this.index=index;
     this.type = type;
@@ -87,7 +91,7 @@ function ElasticHarvest(harvest_app,es_url,index,type,options) {
         terms:["type","order","aggregations","property"],
         stats:["type","property"],
         extended_stats:["type","property"]
-    }
+    };
 
     function setValueIfExists(obj,property,val,fn){
         (val) && (fn?fn(val,property):true) && (obj[property] = val);
@@ -1132,7 +1136,7 @@ ElasticHarvest.prototype.deleteIndex=function() {
     return requestAsync({uri:url, method: 'DELETE', body:""}).then(function(response){
         var body = JSON.parse(response[1]);
         if(body.error){
-            if(_s.startsWith(body.error,"IndexMissingException")){
+            if(_s.contains(body.error,"IndexMissingException")){
                 console.warn("[Elastic-Harvest] Tried to delete the index, but it was already gone!");
                 return body;
             }else{
@@ -1157,7 +1161,7 @@ ElasticHarvest.prototype.initializeMapping=function(mapping,shouldNotRetry){
         var body = JSON.parse(response[1]);
         if(body.error){
             if(_s.startsWith(body.error,"IndexMissingException") && !shouldNotRetry){
-                console.warn("[Elastic-Harvest] Looks like we need to create an index - I'll handle that automatically for you & will retry adding the mapping afterward.")
+                console.warn("[Elastic-Harvest] Looks like we need to create an index - I'll handle that automatically for you & will retry adding the mapping afterward.");
                 return _this.initializeIndex().then(function(){return _this.initializeMapping(mapping,true)});
             }else{
                 throw new Error(response[1]);

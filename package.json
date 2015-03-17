@@ -21,7 +21,8 @@
     "underscore.string": "~2.3.2",
     "rsvp": "~3.0.14",
     "bluebird": "~2.3.2",
-    "i": "~0.3.2"
+    "i": "~0.3.2",
+    "http-as-promised":"0.1.x"
   },
 
   "devDependencies": {
