@@ -9,6 +9,7 @@ var fixtures = require('./../fixtures.json');
 
 var baseUrl = 'http://localhost:' + process.env.PORT;
 var keys = {};
+var harvestPreparedDeferred = RSVP.defer();
 
 var ES_INDEX_WAIT_TIME = 1000; //we'll wait this amount of time before querying the es_index.
 _.each(fixtures, function (resources, collection) {
@@ -17,14 +18,14 @@ _.each(fixtures, function (resources, collection) {
 
 describe('using mongodb + elastic search', function () {
     var ids = {};
-    var _harvestApp;
     this.timeout(5000);
-
+    var _harvestApp;
     before(function (done) {
         this.app
             .then(function (harvestApp){
-                var expectedDbName = harvestApp.options.db;
                 _harvestApp = harvestApp;
+                var expectedDbName = harvestApp.options.db;
+                harvestPreparedDeferred.resolve(harvestApp);
                 return new Promise(function(resolve){
                     harvestApp.adapter.mongoose.connections[1].db.collectionNames(function(err, collections){
                         resolve(_.compact(_.map(collections, function(collection){
@@ -98,6 +99,9 @@ describe('using mongodb + elastic search', function () {
     require("./aggregations")(baseUrl,keys,ids,ES_INDEX_WAIT_TIME);
     //require("./resources")(baseUrl,keys,ids,ES_INDEX_WAIT_TIME);
 
+    harvestPreparedDeferred.promise.then(function(harvestApp){
+        require("./mapmaker")(harvestApp,"people");
+    });
 
     after(function (done) {
         _.each(fixtures, function (resources, collection) {

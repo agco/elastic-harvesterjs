@@ -39,14 +39,33 @@ var Elastic_Search_URL = process.env.BONSAI_URL || "http://127.0.0.1:9200";
 var Elastic_Search_Index = "dealer-api";
 var type = "dealers";
 ```
-#### Create elastic search endpoint (NB: api changed in v0.0.6)
+#### Create elastic search endpoint (NB: api changed in v1.0.0)
 ```js
-var dealerSearch = new ElasticHarvest(harvest_app, Elastic_Search_URL,Elastic_Search_Index, type);
-harvest_app.router.get('/dealers/search', dealerSearch.route);
-//Required to make the elastic search endpoint work properly
-harvest_app.onRouteCreated('dealer').then(function(harvestRoute){
-    dealerSearch.setHarvestRoute(harvestRoute);
-});
+
+    var harvestApp = harvest(options);
+
+    var peopleSearch;
+
+    var peopleSearchRoute;
+
+    //This circumvents a dependency issue between harvest and elastic-harvest.
+    harvestApp.router.get('/people/search', function(){
+        peopleSearchRoute.apply(peopleSearch,arguments);
+    });
+
+    harvestApp
+        .resource('person', {
+            name: String
+            });
+
+    peopleSearch = new ElasticHarvest(harvest_app, Elastic_Search_URL,Elastic_Search_Index, type);
+
+    peopleSearchRoute  = peopleSearch.route;
+
+    peopleSearch.setHarvestRoute(harvestApp.route('person'));
+    
+    peopleSearch.enableAutoSync("person");
+
 ```
 
 

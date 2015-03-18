@@ -209,6 +209,7 @@ module.exports={
                     "lovers": {
                         "type": "nested",
                         "properties": {
+
                             "name": {
                                 "type": "string",
                                 "index": "not_analyzed"
