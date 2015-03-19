@@ -1,10 +1,17 @@
-var fortune = require('fortune-agco');
-var RSVP = require('rsvp');
-var ElasticFortune = require('../elastic-fortune');
+var harvest = require('harvesterjs');
+var ElasticHarvest = require('../elastic-harvester');
 
 function createApp(options) {
-    var fortuneApp = fortune(options)
 
+    var harvestApp = harvest(options);
+    var peopleSearch;
+    var elasticHarvestRoute;
+    //This circumvents a dependency issue between harvest and elastic-harvest.
+    harvestApp.router.get('/people/search', function(){
+        elasticHarvestRoute.apply(peopleSearch,arguments);
+    });
+
+    harvestApp
         .resource('person', {
             name: String,
             appearances: Number,
@@ -12,40 +19,34 @@ function createApp(options) {
             soulmate: {ref: 'person', inverse: 'soulmate'},
             lovers: [{ref: 'person', inverse: 'lovers'}]
         })
-
         .resource('pet', {
             name: String,
-            appearances: Number
+            appearances: Number,
+            toys:['toy'],
+            friends:['pet']
         })
+        .resource('toy', {
+            name: String
+        });
 
-    var collectionNameLookup = {
-        "soulmate": "person",
-        "lovers": "person",
-        "pets":"pet",
-        "owner":"person"
-    };
+    peopleSearch = new ElasticHarvest(harvestApp, options.es_url,options.es_index, "people");
+    elasticHarvestRoute = peopleSearch.route;
 
-    var peopleSearch = new ElasticFortune(fortuneApp, options.es_url,options.es_index, "people", collectionNameLookup);
-    fortuneApp.router.get('/people/search', peopleSearch.route);
-
-    fortuneApp.onRouteCreated('person').then(function(fortuneRoute){
-        peopleSearch.setFortuneRoute(fortuneRoute);
+    var indexReadyPromise = peopleSearch.deleteIndex().then(function(){
+        return peopleSearch.initializeMapping(require("./test.mapping.js")).then(function(response){
+            console.log('Initializing ES mapping: ' + JSON.stringify(response));
+        });
     });
 
+
+    peopleSearch.setHarvestRoute(harvestApp.route('person'));
     peopleSearch.enableAutoSync("person");
 
-    return RSVP.all([
-        fortuneApp.onRouteCreated('pet'),
-        fortuneApp.onRouteCreated('person')
-    ])
+    return indexReadyPromise
         .then(function () {
-            fortuneApp.listen(process.env.PORT);
-            return fortuneApp;
+            harvestApp.listen(process.env.PORT);
+            return harvestApp;
         });
 }
-
-
-
-
 
 module.exports = createApp;

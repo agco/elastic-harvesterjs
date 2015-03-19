@@ -1,7 +1,7 @@
 {
-  "name": "elastic-fortune",
-  "description": "Connects Elastic Search, fortune.js & mongodb in a jiff!",
-  "version": "0.0.9",
+  "name": "elastic-harvesterjs",
+  "description": "Connects Elastic Search, harvest.js & mongodb in a jiff!",
+  "version": "1.0.0",
   "keywords": [
       "elasticsearch",
       "elastic-search",
@@ -16,16 +16,17 @@
   },
   "dependencies": {
     "lodash": "~2.4.1",
-    "mongoose": "~3.8.12",
+    "mongoose": "3.8.12",
     "request": "2.40.0",
     "underscore.string": "~2.3.2",
     "rsvp": "~3.0.14",
     "bluebird": "~2.3.2",
-    "i": "~0.3.2"
+    "i": "~0.3.2",
+    "http-as-promised":"0.1.x"
   },
 
   "devDependencies": {
-      "fortune-agco":"0.2.10",
+      "harvester":"agco/harvesterjs#1.0.1",
       "mocha": "~1.20.1",
       "should": "~4.0.4",
       "supertest": "~0.13.0"
@@ -47,9 +48,9 @@
     "email": "stephensebro@yahoo.com",
     "url": "http://github.com/ssebro/"
   },
-  "main": "./elastic-fortune.js",
+  "main": "./elastic-harvester.js",
   "files":[
-    "elastic-fortune.js",
+    "elastic-harvester.js",
     "LICENSE",
     "Util.js"
   ]

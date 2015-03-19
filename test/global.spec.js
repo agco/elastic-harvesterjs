@@ -20,8 +20,8 @@ before(function (done) {
 });
 after(function (done) {
     this.app
-        .then(function (fortuneApp) {
-            fortuneApp.router.close();
+        .then(function (harvesterApp) {
+            harvesterApp.router.close();
             this.app = null;
         })
         .finally(function () {

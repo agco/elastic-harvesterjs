@@ -9,24 +9,25 @@ var fixtures = require('./../fixtures.json');
 
 var baseUrl = 'http://localhost:' + process.env.PORT;
 var keys = {};
+var harvestPreparedDeferred = RSVP.defer();
 
 var ES_INDEX_WAIT_TIME = 1000; //we'll wait this amount of time before querying the es_index.
 _.each(fixtures, function (resources, collection) {
     keys[collection] = inflect.pluralize(collection);
 });
 
-describe('using mongodb adapter', function () {
+describe('using mongodb + elastic search', function () {
     var ids = {};
-    var _fortuneApp;
-    //this.timeout(50000);
-
+    this.timeout(5000);
+    var _harvestApp;
     before(function (done) {
         this.app
-            .then(function (fortuneApp){
-                var expectedDbName = fortuneApp.options.db;
-                _fortuneApp = fortuneApp;
+            .then(function (harvestApp){
+                _harvestApp = harvestApp;
+                var expectedDbName = harvestApp.options.db;
+                harvestPreparedDeferred.resolve(harvestApp);
                 return new Promise(function(resolve){
-                    fortuneApp.adapter.mongoose.connections[1].db.collectionNames(function(err, collections){
+                    harvestApp.adapter.mongoose.connections[1].db.collectionNames(function(err, collections){
                         resolve(_.compact(_.map(collections, function(collection){
 
                             var collectionParts = collection.name.split(".");
@@ -35,7 +36,7 @@ describe('using mongodb adapter', function () {
 
                             if(name && (name !== "system") && db && (db === expectedDbName)){
                                 return new RSVP.Promise(function(resolve){
-                                    fortuneApp.adapter.mongoose.connections[1].db.collection(name, function(err, collection){
+                                    harvestApp.adapter.mongoose.connections[1].db.collection(name, function(err, collection){
                                         collection.remove({},null, function(){
                                             console.log("Wiped collection", name);
                                             resolve();
@@ -50,40 +51,7 @@ describe('using mongodb adapter', function () {
             }).then(function(wipeFns){
                 console.log("Wiping collections:");
                 return RSVP.all(wipeFns);
-            }).then(function(){
-                console.log("Wiping elastic-search:");
-
-                return new Promise(function (resolve) {
-                    request(_fortuneApp.options.es_url)
-                        .delete('/' + _fortuneApp.options.es_index)
-                        .send({})
-                        .expect('Content-Type', /json/)
-                        .end(function (error, response) {
-                            should.not.exist(error);
-                            var body = JSON.parse(response.text);
-                            resolve();
-                        });
-                })
-
-            })
-
-            .then(function(){
-                return new Promise(function (resolve) {
-                    request(_fortuneApp.options.es_url)
-                        .post('/' + _fortuneApp.options.es_index)
-                        .send({})
-                        .expect('Content-Type', /json/)
-                        .end(function (error, response) {
-                            should.not.exist(error);
-                            var body = JSON.parse(response.text);
-                            resolve();
-                        });
-                })
-            })
-
-
-
-            .then(function () {
+            }).then(function () {
                 console.log("--------------------");
                 console.log("Running tests:");
 
@@ -124,13 +92,16 @@ describe('using mongodb adapter', function () {
     });
 
 
-//    require("./resources")(baseUrl,keys,ids);
-//    require("./associations")(baseUrl,keys,ids);
-
+    require("./associations")(baseUrl,keys,ids,ES_INDEX_WAIT_TIME);
     require("./limits")(baseUrl,keys,ids);
-//    require("./includes")(baseUrl,keys,ids);
+    require("./includes")(baseUrl,keys,ids,ES_INDEX_WAIT_TIME);
+    require("./filters")(baseUrl,keys,ids);
     require("./aggregations")(baseUrl,keys,ids,ES_INDEX_WAIT_TIME);
+    //require("./resources")(baseUrl,keys,ids,ES_INDEX_WAIT_TIME);
 
+    harvestPreparedDeferred.promise.then(function(harvestApp){
+        require("./mapmaker")(harvestApp,"people");
+    });
 
     after(function (done) {
         _.each(fixtures, function (resources, collection) {

@@ -8,7 +8,7 @@ var mocha = new Mocha()
     .ui('bdd');
 
 mocha.addFile(path.join(location, 'global.spec.js'));
-mocha.addFile(path.join(location, 'elastic-fortune/all.js'));
+mocha.addFile(path.join(location, 'elastic-harvest/all.js'));
 
 mocha.run(function (failures) {
     process.exit(failures);

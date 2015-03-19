@@ -2,11 +2,13 @@
   "person": [
     {
       "name": "Dilbert",
-      "appearances": 3457
+      "appearances": 3457,
+      "id":"547e53616773240200a89531"
     },
     {
       "name": "Wally",
-      "appearances": 1934
+      "appearances": 1934,
+      "id":"547e53616773240200a89566"
     }
   ],
   "pet": [
@@ -17,6 +19,14 @@
     {
       "name": "Ratbert",
       "appearances": 509
+    }
+  ],
+  "toy": [
+    {
+      "name": "bear"
+    },
+    {
+      "name": "snake"
     }
   ]
 }

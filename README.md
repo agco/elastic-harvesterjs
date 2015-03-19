@@ -1,3 +1,5 @@
+[![Build Status](https://travis-ci.org/agco/elastic-harvest.svg?branch=develop)](https://travis-ci.org/agco-adm/elastic-harvest)
+
 # Elastic-Harvest
 
 Elastic-Harvest is a Nodejs implementation of the [JSON API Search Profile](https://github.com/agco-adm/json-api-search-profile).
@@ -6,58 +8,64 @@ This library ties together [Harvest](https://github.com/agco-adm/elastic-harvest
 
 Apart from that it also provides a number of helper functions to synchronize Harvest / Mongodb resources with an Elasticsearch backend.
 
+### Elastic-Search Tools
+
+Find useful elastic-search tools as well as their documentation in /non-functionals.
+
 
 ## Features
 
 - Aggregations : stats, extended_stats, top_hits, terms
 - Primary and Linked resource filtering interop
+- Top_hits aggregation interop with JSON API features, inclusion and sparse fieldsets [#6](https://github.com/agco-adm/elastic-harvest/issues/6)
 
 ## Roadmap
 
-- Top_hits aggregation interop with JSON API features, inclusion and sparse fieldsets [#1](https://github.com/agco-adm/elastic-harvest/issues/1)
 - More aggregations : min, max, sum, avg, percentiles, percentile_ranks, cardinality, geo_bounds, significant_terms, range, date_range, filter, filters, missing, histogram, date_histogram, geo_distance
 - Reliable Harvest/Mongodb - Elasticsearch data synchronisation ( oplog based )
 - Support adaptive queries, use the ES mapping file to figure out whether to use parent/child or nested queries / aggregations
-- Use Harvest associations + ES mapping file to assemble data graph rather than having to explicitly specify them through 'collectionNameLookup'
 - Use Harvest associations + ES mapping file to discover which Mongodb collections have to be synced rather than having to register them explicitly
 - Bootstrap Elasticsearch with existing data from Harvest resources through REST endpoint
 - Bootstrap Elasticsearch mapping file through REST endpoint
 
 ## Dependencies
- 
-TODO
+ElasticSearch v1.4.0+
 
 
 ## Usage
 
 ```js
-//Hash of properties to related mongo collections
-var collectionNameLookup = {
-    "brand": "brand",
-    "product_type": "product_type",
-    "contract_type": "contract_type",
-    "region": "region",
-    "country": "country",
-    "address_country": "country",
-    "address_state_province": "state_province",
-    "current_contracts": "contract",
-    "phone_numbers": "phone_number",
-    "business_hours": "business_hours",
-    "current_offerings": "offering",
-    "dealer_misc": "dealers_misc"
-}collectionNameLookup
 var Elastic_Search_URL = process.env.BONSAI_URL || "http://127.0.0.1:9200";
 var Elastic_Search_Index = "dealer-api";
 var type = "dealers";
 ```
-#### Create elastic search endpoint (NB: api changed in v0.0.6)
+#### Create elastic search endpoint (NB: api changed in v1.0.0)
 ```js
-var dealerSearch = new ElasticFortune(fortune_app, Elastic_Search_URL,Elastic_Search_Index, type, collectionNameLookup);
-fortune_app.router.get('/dealers/search', dealerSearch.route);
-//Required to make the elastic search endpoint work properly
-fortune_app.onRouteCreated('dealer').then(function(fortuneRoute){
-    dealerSearch.setFortuneRoute(fortuneRoute);
-});
+
+    var harvestApp = harvest(options);
+
+    var peopleSearch;
+
+    var peopleSearchRoute;
+
+    //This circumvents a dependency issue between harvest and elastic-harvest.
+    harvestApp.router.get('/people/search', function(){
+        peopleSearchRoute.apply(peopleSearch,arguments);
+    });
+
+    harvestApp
+        .resource('person', {
+            name: String
+            });
+
+    peopleSearch = new ElasticHarvest(harvest_app, Elastic_Search_URL,Elastic_Search_Index, type);
+
+    peopleSearchRoute  = peopleSearch.route;
+
+    peopleSearch.setHarvestRoute(harvestApp.route('person'));
+    
+    peopleSearch.enableAutoSync("person");
+
 ```
 
 
@@ -70,7 +78,7 @@ dealerSearch.enableAutoSync("dealer");
 
 #### Alternative way to create an :after endpoint & sync elastic search. This approach gives you access to do more in the after callback.
 ```js
-this.fortune_app.after("dealer", function (req, res, next) {
+this.harvest_app.after("dealer", function (req, res, next) {
     if (req.method === 'POST' || (req.method === 'PUT' && this.id)) {
         return dealerSearch.expandAndSync(this);
     } else {
@@ -107,7 +115,7 @@ dealerSearch.delete(dealer.id);
 #### Create an :after callback & keep your elastic search index up to date with PUTs and POSTs on linked documents. (added in 0.0.5)
 #####Note - only 1 "after" callback is allowed per endpoint, so if you enable indexUpdateOnModelUpdate, you're giving it up to elastic-harvest.
 ```js
-dealerSearch.enableAutoIndexUpdateOnModelUpdate("subdocumentsFortuneEndpoint","links.path.to.object.id");
+dealerSearch.enableAutoIndexUpdateOnModelUpdate("subdocumentsHarvestEndpoint","links.path.to.object.id");
 e.g. dealerSearch.enableAutoIndexUpdateOnModelUpdate("brand","links.current_contracts.brand.id");
 ```
 
