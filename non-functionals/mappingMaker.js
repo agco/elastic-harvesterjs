@@ -1,5 +1,9 @@
 var inflect= require('i')();
 var _ = require('lodash');
+var Promise = require('bluebird');
+var fs = Promise.promisifyAll(require("fs"));
+var defaultConfig  = require('./../test/config');
+var options = defaultConfig.options;
 
 var functionTypeLookup = {
     "function Stri":"string",
@@ -14,7 +18,31 @@ function getFunctionType (fn){
     return functionTypeLookup[fn.toString().substr(0,13)];
 }
 
-function getMapping(harvest_app,pov){
+
+function getMapping(harvest_app,pov,outputFile){
+    if(_.isString(harvest_app)){
+        harvest_app = require(harvest_app)(options);
+    }else{
+        harvest_app = Promise.resolve(harvest_app);
+    }
+    return harvest_app
+        .then(function(harvest_app){
+            return generateMapping(harvest_app,pov);
+        })
+        .then(function(mappingData){
+            if(outputFile){
+                return fs.writeFileAsync(outputFile,JSON.stringify(mappingData)).then(function () {
+                    return mappingData;
+                }).error(function (e) {
+                    console.error("unable to write file, because: ", e.message);
+                });
+            }else{
+                return mappingData;
+            }
+        })
+}
+
+function generateMapping(harvest_app,pov){
 
     var schemaName = inflect.singularize(pov);
     var startingSchema = harvest_app._schema[schemaName];
