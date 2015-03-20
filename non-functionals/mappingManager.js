@@ -16,19 +16,19 @@ Meant to be run @cmd line, but can also be required and used in code.
 
 
 ADD
-#Usage: node mapper.js add http://localhost:9200 dealer-api dealers path-to-new-mapping-json
+#Usage: node mappingManager.js add http://localhost:9200 dealer-api dealers path-to-new-mapping-json
 
 GET
-#Usage: node mapper.js get http://localhost:9200 dealer-api
+#Usage: node mappingManager.js get http://localhost:9200 dealer-api
 
 UPDATE (destructive, causes data loss to entire index)
-#Usage: node mapper.js update http://localhost:9200 dealer-api dealers path-to-new-mapping-json
+#Usage: node mappingManager.js update http://localhost:9200 dealer-api dealers path-to-new-mapping-json
 
 DELETE (destructive)
-#Usage: node mapper.js delete http://localhost:9200 dealer-api
+#Usage: node mappingManager.js delete http://localhost:9200 dealer-api
  */
 
-function Mapper(option,esUrl,esIndex,mappingType,mappingFile,harvesterApp){
+function MappingManager(option,esUrl,esIndex,mappingType,mappingFile,harvesterApp){
     this.option = option || process.env.OPTION;
     this.esUrl = esUrl || process.env.ES_URL;
     this.esIndex = esIndex  || process.env.ES_INDEX;
@@ -41,7 +41,7 @@ function Mapper(option,esUrl,esIndex,mappingType,mappingFile,harvesterApp){
     }
 }
 
-Mapper.prototype.update= function(){
+MappingManager.prototype.update= function(){
     console.log("Updating elastic-search mapping.");
     console.warn("Note that this will cause data loss.");
     var _this=this;
@@ -54,7 +54,7 @@ Mapper.prototype.update= function(){
         })
 };
 
-Mapper.prototype.delete= function(){
+MappingManager.prototype.delete= function(){
     console.log("Deleting elastic-search mapping.");
     return $http.del(this.esUrl+'/'+this.esIndex+'/'+this.mappingType+'/_mapping',{json:{}})
         .spread(function(res,body){
@@ -65,7 +65,7 @@ Mapper.prototype.delete= function(){
         });
 };
 
-Mapper.prototype.get= function(){
+MappingManager.prototype.get= function(){
     console.log("Getting elastic-search mapping.");
     return $http.get(this.esUrl+'/'+this.esIndex+'/_mapping',{json:{}})
         .spread(function(res,body){
@@ -95,7 +95,7 @@ function getMapping(mappingFile){
 }
 
 
-Mapper.prototype.add= function(){
+MappingManager.prototype.add= function(){
     console.log("Adding elastic-search mapping.");
     return this.es.initializeMapping(getMapping(this.mappingFile))
         .then(function(resp){
@@ -104,9 +104,9 @@ Mapper.prototype.add= function(){
 };
 
 if(runningAsScript){
-    var mapper = new Mapper( process.argv[2], process.argv[3], process.argv[4], process.argv[5], process.argv[6]);
-    mapper[mapper.option]();
+    var mappingManager = new MappingManager( process.argv[2], process.argv[3], process.argv[4], process.argv[5], process.argv[6]);
+    mappingManager[mappingManager.option]();
 }else{
-    module.exports=Mapper;
+    module.exports=MappingManager;
 }
 
