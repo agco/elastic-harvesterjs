@@ -6,7 +6,7 @@ var mappingMaker  = new MappingMaker();
 
 module.exports = function() {
 
-    describe.only('mappingMaker', function () {
+    describe('mappingMaker', function () {
         it('should be able to scaffold a mapping for a harvest app', function (done) {
 
             return mappingMaker.generateMapping("./test/app","people","generated.test-created.mapping.json")
