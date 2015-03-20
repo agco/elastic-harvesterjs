@@ -1,14 +1,16 @@
 var harvest = require('harvesterjs');
 var ElasticHarvest = require('../elastic-harvester');
+var Promise = require('bluebird');
 
 function createApp(options) {
 
+    var shouldRunES=(options.es_url && options.es_index);
+
     var harvestApp = harvest(options);
     var peopleSearch;
-    var elasticHarvestRoute;
     //This circumvents a dependency issue between harvest and elastic-harvest.
-    harvestApp.router.get('/people/search', function(){
-        elasticHarvestRoute.apply(peopleSearch,arguments);
+    shouldRunES && harvestApp.router.get('/people/search', function(){
+        peopleSearch.route.apply(peopleSearch,arguments);
     });
 
     harvestApp
@@ -29,24 +31,21 @@ function createApp(options) {
             name: String
         });
 
-    peopleSearch = new ElasticHarvest(harvestApp, options.es_url,options.es_index, "people");
-    elasticHarvestRoute = peopleSearch.route;
+    if(shouldRunES){
+        peopleSearch = new ElasticHarvest(harvestApp, options.es_url,options.es_index, "people");
+        peopleSearch.setHarvestRoute(harvestApp.route('person'));
+        peopleSearch.enableAutoSync("person");
 
-    var indexReadyPromise = peopleSearch.deleteIndex().then(function(){
-        return peopleSearch.initializeMapping(require("./test.mapping.js")).then(function(response){
-            console.log('Initializing ES mapping: ' + JSON.stringify(response));
+        return peopleSearch.deleteIndex().then(function(){
+            return peopleSearch.initializeMapping(require("./test.mapping.js")).then(function(response){
+                console.log('Initializing ES mapping: ' + JSON.stringify(response));
+                return harvestApp;
+            });
         });
-    });
+    }else{
+        return Promise.resolve(harvestApp);
+    }
 
-
-    peopleSearch.setHarvestRoute(harvestApp.route('person'));
-    peopleSearch.enableAutoSync("person");
-
-    return indexReadyPromise
-        .then(function () {
-            harvestApp.listen(process.env.PORT);
-            return harvestApp;
-        });
 }
 
 module.exports = createApp;
