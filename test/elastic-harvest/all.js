@@ -94,7 +94,7 @@ describe('using mongodb + elastic search', function () {
     require("./filters")(baseUrl,keys,ids);
     require("./aggregations")(baseUrl,keys,ids,ES_INDEX_WAIT_TIME);
     //require("./resources")(baseUrl,keys,ids,ES_INDEX_WAIT_TIME);
-    require("./mapmaker")();
+    require("./mappingMaker")();
 
     after(function (done) {
         _.each(fixtures, function (resources, collection) {
