@@ -47,7 +47,7 @@ MappingMaker.prototype.generateMapping=function(harvest_app,pov,outputFile){
         harvest_app = Promise.resolve(harvest_app);
     }
     return harvest_app
-        .catch() //harvest_app doesn't have to work perfectly; we just need it's schemas.
+        .catch() //harvest_app doesn't have to work perfectly; we just need its schemas.
         .then(function(harvest_app){
             return make(harvest_app,pov);
         })

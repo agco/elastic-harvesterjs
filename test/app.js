@@ -36,12 +36,14 @@ function createApp(options) {
         peopleSearch.setHarvestRoute(harvestApp.route('person'));
         peopleSearch.enableAutoSync("person");
 
-        return peopleSearch.deleteIndex().then(function(){
-            return peopleSearch.initializeMapping(require("./test.mapping.js")).then(function(response){
+        return peopleSearch.deleteIndex()
+            .then(function(){
+                return peopleSearch.initializeMapping(require("./test.mapping.js"));
+            })
+            .then(function(response){
                 console.log('Initializing ES mapping: ' + JSON.stringify(response));
                 return harvestApp;
             });
-        });
     }else{
         return Promise.resolve(harvestApp);
     }
