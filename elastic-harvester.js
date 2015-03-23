@@ -502,7 +502,7 @@ ElasticHarvest.prototype.getEsQueryBody = function (predicates, nestedPredicates
         "ge":"gte"
         };
     var createMatchQueryFragment = function (field,value){
-        var fragment,actualValue,operator,isNotMatchQuery=undefined;
+        var fragment,actualValue,operator,isNotMatchQuery;
         //ToDo: add "lenient" to support queries against numerical values.
         //Handle range queries (lt, le, gt, ge) differently.
         if(value.indexOf("=")!=-1){
