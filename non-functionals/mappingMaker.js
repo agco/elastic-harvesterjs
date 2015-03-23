@@ -1,5 +1,26 @@
 var inflect= require('i')();
 var _ = require('lodash');
+var Promise = require('bluebird');
+var fs = Promise.promisifyAll(require("fs"));
+var options = {
+    adapter: 'mongodb',
+    connectionString: "mongodb://127.0.0.1:27017/testDB",
+    db: 'testDB',
+    inflect: true
+};
+console.log(JSON.stringify(options));
+var runningAsScript = !module.parent;
+
+/*
+ *** Elastic-Search mapping maker. ***
+ * -------------------------------- *
+ Generate scaffolded elastic-search mapping from a harvester app.
+ Meant to be run @cmd line, but can also be required and used in code.
+
+ #Usage: node mappingMaker.js path-to-harvester-app primary-es-graph-resource(e.g. people) file-to-create.json
+ NB: argv[3] (in this case, "file-to-create.json") is optional. If not specified, no file will be written to disk; instead the mapping will
+ be console.logged.
+ */
 
 var functionTypeLookup = {
     "function Stri":"string",
@@ -14,7 +35,41 @@ function getFunctionType (fn){
     return functionTypeLookup[fn.toString().substr(0,13)];
 }
 
-function getMapping(harvest_app,pov){
+function MappingMaker(){
+
+}
+
+
+MappingMaker.prototype.generateMapping=function(harvest_app,pov,outputFile){
+    if(_.isString(harvest_app)){
+        harvest_app = require("../"+harvest_app)(options);
+    }else{
+        harvest_app = Promise.resolve(harvest_app);
+    }
+    return harvest_app
+        .catch() //harvest_app doesn't have to work perfectly; we just need its schemas.
+        .then(function(harvest_app){
+            return make(harvest_app,pov);
+        })
+        .then(function(mappingData){
+            if(outputFile){
+                console.log('Saving mapping to '+outputFile);
+                return fs.writeFileAsync(outputFile,JSON.stringify(mappingData, null, 4)).then(function () {
+                    console.log('Saved.');
+
+                    return mappingData;
+                }).error(function (e) {
+                    console.error("Unable to save file, because: ", e.message);
+                });
+            }else{
+                console.log('Generated Mapping: ');
+                console.log(JSON.stringify(mappingData,null,4));
+                return mappingData;
+            }
+        })
+};
+
+function make(harvest_app,pov){
 
     var schemaName = inflect.singularize(pov);
     var startingSchema = harvest_app._schema[schemaName];
@@ -106,4 +161,10 @@ function getMapping(harvest_app,pov){
     return retVal;
 }
 
-module.exports = {createMapping: getMapping};
+
+if(runningAsScript){
+    var mappingMaker = new MappingMaker();
+    mappingMaker.generateMapping(process.argv[2], process.argv[3], process.argv[4]);
+}else{
+    module.exports=MappingMaker;
+}

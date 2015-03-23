@@ -502,13 +502,12 @@ ElasticHarvest.prototype.getEsQueryBody = function (predicates, nestedPredicates
         "ge":"gte"
         };
     var createMatchQueryFragment = function (field,value){
-        var fragment;
+        var fragment,actualValue,operator,isNotMatchQuery;
         //ToDo: add "lenient" to support queries against numerical values.
-
         //Handle range queries (lt, le, gt, ge) differently.
         if(value.indexOf("=")!=-1){
-            var actualValue = value.substr(3);
-            var operator = operatorMap[value.substr(0,2)];
+            actualValue = value.substr(3);
+            operator = operatorMap[value.substr(0,2)];
             fragment = {"query": {"range": {}}};
             fragment["query"]["range"][field] = {};
             fragment["query"]["range"][field][operator] = actualValue;
@@ -517,9 +516,25 @@ ElasticHarvest.prototype.getEsQueryBody = function (predicates, nestedPredicates
             fragment = {"query": {"wildcard": {}}};
             fragment["query"]["wildcard"][field] = value;
         }else {
-             var val = value.replace(/,/g," ");
-             fragment = {"query": {"match": {}}};
-             fragment["query"]["match"][field] = {query:val,lenient:true};
+            if(_.isArray(value)){
+                //see if values are range queries
+                _.each(value,function(innerFieldValue){
+                    if(innerFieldValue.indexOf("=")!=-1){
+                        actualValue = innerFieldValue.substr(3);
+                        operator = operatorMap[innerFieldValue.substr(0,2)];
+                        fragment = fragment || {"query": {"range": {}}};
+                        fragment["query"]["range"][field] = {};
+                        fragment["query"]["range"][field][operator] = actualValue;
+                        isNotMatchQuery=true;
+                    }
+                });
+                if (isNotMatchQuery)
+                    return fragment;
+            }
+
+            var val = value.replace(/,/g," ");
+            fragment = {"query": {"match": {}}};
+            fragment["query"]["match"][field] = {query:val,lenient:true};
         }
         return fragment;
     };
@@ -616,21 +631,47 @@ ElasticHarvest.prototype.getEsQueryBody = function (predicates, nestedPredicates
             var retVal = false;
             _.each(basicQuery,function(query) {
                 retVal = retVal || isAlongExpandableQueryLine(query);
-            })
+            });
             return retVal;
-        }
+        };
+
+        var getMatchQuery = function(innerQuery){
+            if (innerQuery.match) {
+                return innerQuery.match;
+            } else if (innerQuery.nested && innerQuery.nested.query && innerQuery.nested.query.match){
+                return innerQuery.nested.query.match;
+            }else{
+                return false;
+            }
+        };
+        var getRangeQuery = function(innerQuery){
+            if (innerQuery.range) {
+                return innerQuery.range;
+            } else if (innerQuery.nested && innerQuery.nested.query && innerQuery.nested.query.range){
+                return innerQuery.nested.query.range;
+            }else{
+                return false;
+            }
+        };
 
         var isAlongExpandableQueryLine = function(query){
             var retVal = false;
             _.each(query.nested.query.bool.must, function (innerQuery, mustI) {
-                var matchObj = innerQuery.match|| innerQuery.nested.query.match;
-                var values = _.values(matchObj);
-                if (_.isArray(values[0])) {
-                    retVal = true;
+                var rangeObj;
+                var matchObj = getMatchQuery(innerQuery);
+                if(matchObj){
+                    var values = _.values(matchObj);
+                    if (_.isArray(values[0])) {
+                        retVal = true;
+                    }
+                }else{
+                    rangeObj = getRangeQuery(innerQuery);
+                    retVal = false;
                 }
-            })
+
+            });
             return retVal;
-        }
+        };
 
         //Handles the case where multiple values are submitted for one key
         //This transforms a query that tries to match something like {match:{links.husband.name:["Peter","Solomon"]} to one that

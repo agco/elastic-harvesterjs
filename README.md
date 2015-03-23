@@ -1,14 +1,14 @@
-[![Build Status](https://travis-ci.org/agco/elastic-harvest.svg?branch=develop)](https://travis-ci.org/agco-adm/elastic-harvest)
+[![Build Status](https://travis-ci.org/agco/elastic-harvesterjs.svg?branch=develop)](https://travis-ci.org/agco/elastic-harvesterjs)
 
 # Elastic-Harvest
 
-Elastic-Harvest is a Nodejs implementation of the [JSON API Search Profile](https://github.com/agco-adm/json-api-search-profile).
+Elastic-Harvest is a Nodejs implementation of the [JSON API Search Profile](https://github.com/agco/agco-json-api-profiles).
 
-This library ties together [Harvest](https://github.com/agco-adm/elastic-harvest) and Elasticsearch to offer the required [linked resource filtering and aggregation](https://github.com/agco-adm/json-api-search-profile/blob/master/public/profile.md) features.
+This library ties together [harvester.js](https://github.com/agco/harvesterjs) and elasticsearch to offer the required [linked resource filtering and aggregation](https://github.com/agco/agco-json-api-profiles/blob/master/public/search-profile.md) features.
 
-Apart from that it also provides a number of helper functions to synchronize Harvest / Mongodb resources with an Elasticsearch backend.
+Apart from that it also provides a number of helper functions to synchronize harvester.js/mongoDB resources with an elasticsearch backend.
 
-### Elastic-Search Tools
+### Elasticsearch Tools
 
 Find useful elastic-search tools as well as their documentation in /non-functionals.
 
@@ -22,14 +22,14 @@ Find useful elastic-search tools as well as their documentation in /non-function
 ## Roadmap
 
 - More aggregations : min, max, sum, avg, percentiles, percentile_ranks, cardinality, geo_bounds, significant_terms, range, date_range, filter, filters, missing, histogram, date_histogram, geo_distance
-- Reliable Harvest/Mongodb - Elasticsearch data synchronisation ( oplog based )
+- Reliable harvester.js/mongoDB - Elasticsearch data synchronisation ( oplog based )
 - Support adaptive queries, use the ES mapping file to figure out whether to use parent/child or nested queries / aggregations
 - Use Harvest associations + ES mapping file to discover which Mongodb collections have to be synced rather than having to register them explicitly
-- Bootstrap Elasticsearch with existing data from Harvest resources through REST endpoint
-- Bootstrap Elasticsearch mapping file through REST endpoint
+- Bootstrap elasticsearch with existing data from Harvest resources through REST endpoint
+- Bootstrap elasticsearch mapping file through REST endpoint
 
 ## Dependencies
-ElasticSearch v1.4.0+
+elasticSearch v1.4.0+
 
 
 ## Usage

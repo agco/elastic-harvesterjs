@@ -1,15 +1,15 @@
 {
   "name": "elastic-harvesterjs",
-  "description": "Connects Elastic Search, harvest.js & mongodb in a jiff!",
-  "version": "1.0.0",
+  "description": "Connects Elastic Search, harvester.js & mongodb in a jiff!",
+  "version": "1.0.1",
   "keywords": [
       "elasticsearch",
       "elastic-search",
       "mongodb",
       "mongo",
-      "fortune",
-      "fortunejs",
-      "fortune.js"
+      "harvester",
+      "harvesterjs",
+      "harvester.js"
   ],
   "scripts": {
     "test": "node test/runner mongodb://127.0.0.1:27017/testDB"

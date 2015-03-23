@@ -4,7 +4,7 @@ var type = process.argv[3] ;
 var $http = require('http-as-promised');
 var runningAsScript = !module.parent;
 
-var MAX_ENTITIES_TO_PROCESS = 1200;
+var MAX_ENTITIES_TO_PROCESS = 120000;
 var http = require('http');
 var postPool = new http.Agent();
 postPool.maxSockets = 5;

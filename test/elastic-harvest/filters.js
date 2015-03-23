@@ -42,16 +42,28 @@ module.exports = function(baseUrl,keys,ids) {
                     done();
                 });
         });
-        it.skip("should allow resource sub-document filtering", function (done) {
+        it("should allow resource sub-document filtering", function (done) {
             //add mapping & do nesting to enable this.
             request(baseUrl).get("/people/search?links.pets.name=Dogbert")
                 .end(function (err, response) {
-                    should.not.exist(error);
+                    should.not.exist(err);
                     var body = JSON.parse(response.text);
                     body.people.length.should.equal(1);
                     done();
                 });
         });
+
+        it("should allow resource sub-document filtering combined with subdocument range queries", function (done) {
+            //add mapping & do nesting to enable this.
+            request(baseUrl).get("/people/search?links.pets.name=Dogbert&links.pets.appearances=lt=1935")
+                .end(function (err, response) {
+                    should.not.exist(err);
+                    var body = JSON.parse(response.text);
+                    body.people.length.should.equal(1);
+                    done();
+                });
+        });
+
         it('should support lt query', function (done) {
             request(baseUrl).get('/people/search?appearances=lt=1935')
                 .expect(200)
@@ -87,6 +99,17 @@ module.exports = function(baseUrl,keys,ids) {
         });
         it('should support ge query', function (done) {
             request(baseUrl).get('/people/search?appearances=ge=3457')
+                .expect(200)
+                .end(function (err, res) {
+                    should.not.exist(err);
+                    var body = JSON.parse(res.text);
+                    (body.people.length).should.equal(1);
+                    (body.people[0].name).should.equal('Dilbert');
+                    done();
+                });
+        });
+        it('should support multiple range queries on the same property', function (done) {
+            request(baseUrl).get('/people/search?appearances=ge=3457&appearances=lt=3500')
                 .expect(200)
                 .end(function (err, res) {
                     should.not.exist(err);
