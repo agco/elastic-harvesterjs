@@ -616,21 +616,47 @@ ElasticHarvest.prototype.getEsQueryBody = function (predicates, nestedPredicates
             var retVal = false;
             _.each(basicQuery,function(query) {
                 retVal = retVal || isAlongExpandableQueryLine(query);
-            })
+            });
             return retVal;
-        }
+        };
+
+        var getMatchQuery = function(innerQuery){
+            if (innerQuery.match) {
+                return innerQuery.match;
+            } else if (innerQuery.nested && innerQuery.nested.query && innerQuery.nested.query.match){
+                return innerQuery.nested.query.match;
+            }else{
+                return false;
+            }
+        };
+        var getRangeQuery = function(innerQuery){
+            if (innerQuery.range) {
+                return innerQuery.range;
+            } else if (innerQuery.nested && innerQuery.nested.query && innerQuery.nested.query.range){
+                return innerQuery.nested.query.range;
+            }else{
+                return false;
+            }
+        };
 
         var isAlongExpandableQueryLine = function(query){
             var retVal = false;
             _.each(query.nested.query.bool.must, function (innerQuery, mustI) {
-                var matchObj = innerQuery.match|| innerQuery.nested.query.match;
-                var values = _.values(matchObj);
-                if (_.isArray(values[0])) {
-                    retVal = true;
+                var rangeObj;
+                var matchObj = getMatchQuery(innerQuery);
+                if(matchObj){
+                    var values = _.values(matchObj);
+                    if (_.isArray(values[0])) {
+                        retVal = true;
+                    }
+                }else{
+                    rangeObj = getRangeQuery(innerQuery);
+                    retVal = false;
                 }
-            })
+
+            });
             return retVal;
-        }
+        };
 
         //Handles the case where multiple values are submitted for one key
         //This transforms a query that tries to match something like {match:{links.husband.name:["Peter","Solomon"]} to one that

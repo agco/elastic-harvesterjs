@@ -7,4 +7,4 @@ module.exports = function(){
             harvestApp.listen(process.env.PORT);
             return harvestApp;
         });
-}
+};
