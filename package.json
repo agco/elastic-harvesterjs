@@ -3,41 +3,41 @@
   "description": "Connects Elastic Search, harvest.js & mongodb in a jiff!",
   "version": "1.0.0",
   "keywords": [
-      "elasticsearch",
-      "elastic-search",
-      "mongodb",
-      "mongo",
-      "fortune",
-      "fortunejs",
-      "fortune.js"
+    "elasticsearch",
+    "elastic-search",
+    "mongodb",
+    "mongo",
+    "fortune",
+    "fortunejs",
+    "fortune.js"
   ],
   "scripts": {
-    "test": "node test/runner mongodb://127.0.0.1:27017/testDB"
+    "test": "node test/runner mongodb://127.0.0.1:27017/ehTestDb"
   },
   "dependencies": {
+    "bluebird": "~2.3.2",
+    "http-as-promised": "0.1.x",
+    "i": "~0.3.2",
     "lodash": "~2.4.1",
     "mongoose": "3.8.12",
     "request": "2.40.0",
-    "underscore.string": "~2.3.2",
     "rsvp": "~3.0.14",
-    "bluebird": "~2.3.2",
-    "i": "~0.3.2",
-    "http-as-promised":"0.1.x"
+    "underscore.string": "~2.3.2",
+    "woodman": "1.1.x"
   },
-
   "devDependencies": {
-      "harvester":"agco/harvesterjs#1.0.1",
-      "mocha": "~1.20.1",
-      "should": "~4.0.4",
-      "supertest": "~0.13.0"
+    "harvester": "agco/harvesterjs#1.0.1",
+    "mocha": "~1.20.1",
+    "should": "~4.0.4",
+    "supertest": "~0.13.0"
   },
   "engines": {
     "node": ">=0.10"
   },
   "homepage": "https://github.com/ssebro/elastic-fortune",
   "repository": {
-      "type": "git",
-      "url": "git://github.com/ssebro/elastic-fortune.git"
+    "type": "git",
+    "url": "git://github.com/ssebro/elastic-fortune.git"
   },
   "bugs": {
     "url": "https://github.com/ssebro/elastic-fortune/issues"
@@ -49,7 +49,7 @@
     "url": "http://github.com/ssebro/"
   },
   "main": "./elastic-harvester.js",
-  "files":[
+  "files": [
     "elastic-harvester.js",
     "LICENSE",
     "Util.js"
