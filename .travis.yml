@@ -10,7 +10,9 @@ before_script:
   - sleep 20
   - mongo --eval 'rs.initiate()'
   - sleep 15
-  - node test/events.js
+  - node test/events.js &
+  - sleep 20
+
 deploy:
   provider: npm
   email: stephensebro@yahoo.com
