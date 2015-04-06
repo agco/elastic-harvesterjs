@@ -1,15 +1,15 @@
 {
   "name": "elastic-harvesterjs",
-  "description": "Connects Elastic Search, harvest.js & mongodb in a jiff!",
-  "version": "1.0.0",
+  "description": "Connects Elastic Search, harvester.js & mongodb in a jiff!",
+  "version": "1.0.1",
   "keywords": [
-    "elasticsearch",
-    "elastic-search",
-    "mongodb",
-    "mongo",
-    "fortune",
-    "fortunejs",
-    "fortune.js"
+      "elasticsearch",
+      "elastic-search",
+      "mongodb",
+      "mongo",
+      "harvester",
+      "harvesterjs",
+      "harvester.js"
   ],
   "scripts": {
     "test": "node test/runner mongodb://127.0.0.1:27017/ehTestDb"
@@ -26,10 +26,10 @@
     "woodman": "1.1.x"
   },
   "devDependencies": {
-    "harvester": "agco/harvesterjs#1.0.1",
-    "mocha": "~1.20.1",
-    "should": "~4.0.4",
-    "supertest": "~0.13.0"
+      "harvester":"agco/harvesterjs#1.0.2",
+      "mocha": "~1.20.1",
+      "should": "~4.0.4",
+      "supertest": "~0.13.0"
   },
   "engines": {
     "node": ">=0.10"
