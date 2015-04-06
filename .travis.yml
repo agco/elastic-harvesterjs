@@ -5,11 +5,11 @@ services:
 - mongodb
 - elasticsearch
 before_script:
-  - mkdir testdb
-  - mongod --port 27017 --dbpath testdb --replSet rs0 --oplogSize 20 --noprealloc --fork --smallfiles --logpath mongodb.log
-  - sleep 3
-  - mongo admin --eval 'printjson(rs.initiate());'
+  - echo "replSet = esTestSet" | sudo tee -a /etc/mongodb.conf
+  - sudo service mongodb restart
   - sleep 20
+  - mongo --eval 'rs.initiate()'
+  - sleep 15
 deploy:
   provider: npm
   email: stephensebro@yahoo.com
