@@ -150,9 +150,9 @@ function make(harvest_app,pov){
                 } else if(fnType=="array"){
                     console.warn("[mapping-maker] Array-type scaffolding not yet implemented; The elastic-search mapping scaffolded for this app will be incomplete wrt '"+propertyName+"' property.");
                 } else if(fnType=="buffer"){
-                    console.warn("[mapping-maker] Buffer-type scaffolding not yet implemented; The elastic-search mapping scaffolded for this app will be incomplete.");
+                    console.warn("[mapping-maker] Buffer-type scaffolding not yet implemented; The elastic-search mapping scaffolded for this app will be incomplete wrt '"+propertyName+"' property.");
                 }else{
-                    console.warn("[mapping-maker] unsupported type; The elastic-search mapping scaffolded for this app will be incomplete.");
+                    console.warn("[mapping-maker] unsupported type; The elastic-search mapping scaffolded for this app will be incomplete wrt '"+propertyName+"' property.");
                 }
             }
         });
