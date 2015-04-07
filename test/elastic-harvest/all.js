@@ -11,7 +11,7 @@ var fixtures = require('./../fixtures.json');
 var baseUrl = 'http://localhost:' + process.env.PORT;
 var keys = {};
 
-var ES_INDEX_WAIT_TIME = 2000; //we'll wait this amount of time before querying the es_index.
+var ES_INDEX_WAIT_TIME = 3000; //we'll wait this amount of time before querying the es_index.
 _.each(fixtures, function (resources, collection) {
     keys[collection] = inflect.pluralize(collection);
 });
@@ -94,6 +94,7 @@ describe('using mongodb + elastic search', function () {
     require("./filters")(baseUrl,keys,ids);
     require("./aggregations")(baseUrl,keys,ids,ES_INDEX_WAIT_TIME);
     require("./mappingMaker")();
+    require("./autoUpdateInputGenerator")();
     require("./deletes")(baseUrl,keys,ids,ES_INDEX_WAIT_TIME);
 
 

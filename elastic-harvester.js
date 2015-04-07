@@ -8,6 +8,7 @@ var inflect= require('i')();
 var _ = require('lodash');
 var RSVP = require('rsvp');
 var Util =  require("./Util");
+var autoUpdateInputGenerator  = new (require("./autoUpdateInputGenerator"))();
 
 //Bonsai wants us to only send 1 ES query at a time, for POSTs/PUTs. Later on we can add more pools for other requests if needed.
 var http = require('http');
@@ -26,6 +27,7 @@ function ElasticHarvest(harvest_app,es_url,index,type,options) {
     var _this= this;
     if(harvest_app){
         this.collectionLookup=getCollectionLookup(harvest_app,type);
+        this.autoUpdateInput=autoUpdateInputGenerator.make(harvest_app,type);
         this.adapter = harvest_app.adapter;
         this.harvest_app = harvest_app;
     }else{
@@ -907,8 +909,14 @@ ElasticHarvest.prototype.getEsQueryBody = function (predicates, nestedPredicates
     return  composedEsQuerystr;
 };
 
-//Todo: note if POSTS become much slower in production. If they do, drop POSTS from here - they're not really important.
-//Todo: Note that this does not cover deletes.
+
+ElasticHarvest.prototype.enableAutoIndexUpdate = function(){
+    var _this = this;
+    _.each(this.autoUpdateInput,function(autoUpdateValue,autoUpdateKey){
+        _this.enableAutoIndexUpdateOnModelUpdate(autoUpdateValue,autoUpdateKey);
+    })
+};
+
 ElasticHarvest.prototype.enableAutoIndexUpdateOnModelUpdate = function (endpoint,idField) {
     var _this = this;
     if(this.harvest_app._oplogEnabled) {
@@ -928,23 +936,13 @@ ElasticHarvest.prototype.enableAutoIndexUpdateOnModelUpdate = function (endpoint
         console.warn("[Elastic-Harvest] Will sync  "+endpoint+" data via harvest.after");
         this.harvest_app.after(endpoint, function (req, res, next) {
             var entity = this;
-            if (( req.method === 'POST' || req.method === 'PUT') && entity.id) {
+            if ((_.contains(['POST','PUT'], req.method)) && entity.id) {
                 return _this.updateIndexForLinkedDocument(idField, entity);
             } else {
-                return this;
+                return entity;
             }
         });
     }
-//                 //Todo: finish support for deletes.
-//    this.harvest_app.before(endpoint, function (req, res, next) {
-//        var entity = this;
-//        if ((req.method === 'DELETE') && entity.id) {
-//            return _this.updateIndexForLinkedDocument(idField,entity,req.method);
-//        } else {
-//            return this;
-//        }
-//    });
-
 };
 
 ///Searches elastic search at idField for entity.id & triggers a reindex. If method is DELETE, it'll
@@ -955,28 +953,6 @@ ElasticHarvest.prototype.updateIndexForLinkedDocument = function (idField,entity
     return _this.simpleSearch(idField,entity.id)
         .then(function(result){
             return _this.expandAndSync(_.map(result.hits.hits,function(hit){
-                //Todo: finish support for deletes.
-//                if(method && method=="DELETE"){
-//                    var objPath = idField.substr(0, idField.lastIndexOf(".id"));
-//                    var objName = objPath.substr(objPath.lastIndexOf(".")+1,objPath.length);
-//                    var closestParentObjPath = idField.substr(0, idField.lastIndexOf("."+objName));
-//                    var closestParentObj = Util.getProperty(hit._source,closestParentObjPath);
-//
-//                    if(_.isArray(closestParentObj)){
-//                        var closestParentObjName = closestParentObjPath.substr(closestParentObjPath.lastIndexOf(".")+1,closestParentObjPath.length);
-//                        var closestParentObjParentPath = closestParentObjPath.substr(0, closestParentObjPath.lastIndexOf("."+closestParentObjName));
-//                        var closestParentObjectParent = Util.getProperty(hit._source,closestParentObjParentPath);
-//
-//                        closestParentObjectParent[closestParentObjName]=_.reject(closestParentObj,function(object){
-//                            return object.id==entity.id;
-//                            //issue: the array can be of other objects, and the affected object may be
-//                            //really deep. We need an expanded query syntax that can query into arrays to sole
-                              //this issue.
-//                        })
-//                    }else{
-//                        delete closestParentObj[objName];
-//                    }
-//                }
                 return unexpandEntity(hit._source);
             })).then(function(result){
                 return entity;
@@ -1032,7 +1008,7 @@ ElasticHarvest.prototype.delete = function(id){
 
 
 /** POST RELATED **/
-//Note - only 1 "after" callback is allowed per endpoint, so if you enable autosync, you're giving it up to elastic-harvest.
+//Note - only 1 "after" callback is allowed per endpoint, so if you enable autosync w/o oplog integration, you're giving it up to elastic-harvest.
 ElasticHarvest.prototype.enableAutoSync= function(){
     var endpoint = inflect.singularize(this.type);
     var _this = this;

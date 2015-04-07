@@ -6,3 +6,4 @@ node_modules
 .DS_Store
 *.stephen
 *.test-created.mapping.json
+*.test-created.input.json

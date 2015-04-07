@@ -1,7 +1,6 @@
 var MappingMaker = require("../../non-functionals/mappingMaker");
 var inflect= require('i')();
 var should = require('should');
-var _ = require('lodash');
 var mappingMaker  = new MappingMaker();
 
 module.exports = function() {
