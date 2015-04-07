@@ -911,14 +911,30 @@ ElasticHarvest.prototype.getEsQueryBody = function (predicates, nestedPredicates
 //Todo: Note that this does not cover deletes.
 ElasticHarvest.prototype.enableAutoIndexUpdateOnModelUpdate = function (endpoint,idField) {
     var _this = this;
-    this.harvest_app.after(endpoint, function (req, res, next) {
-        var entity = this;
-        if (( req.method === 'POST' || req.method === 'PUT') && entity.id) {
-            return _this.updateIndexForLinkedDocument(idField,entity);
-        } else {
-            return this;
+    if(this.harvest_app._oplogEnabled) {
+        console.warn("[Elastic-Harvest] Will sync "+endpoint+" data via oplog");
+        this.harvest_app.onChange(endpoint,{insert:resourceChanged,update:resourceChanged,delete: resourceChanged});
+
+        function resourceChanged (resourceId) {
+            console.log("[Elastic-Harvest] Syncing Change @" + idField + ' : ' + resourceId);
+
+            return _this.updateIndexForLinkedDocument(idField, {id:resourceId.toString()})
+                .catch(function (error) {
+                    //This sort of error will not be solved by retrying it a bunch of times.
+                    console.warn(error);
+                })
         }
-    });
+    }else{
+        console.warn("[Elastic-Harvest] Will sync  "+endpoint+" data via harvest.after");
+        this.harvest_app.after(endpoint, function (req, res, next) {
+            var entity = this;
+            if (( req.method === 'POST' || req.method === 'PUT') && entity.id) {
+                return _this.updateIndexForLinkedDocument(idField, entity);
+            } else {
+                return this;
+            }
+        });
+    }
 //                 //Todo: finish support for deletes.
 //    this.harvest_app.before(endpoint, function (req, res, next) {
 //        var entity = this;
@@ -1004,6 +1020,7 @@ ElasticHarvest.prototype.simpleSearch = function (field,value) {
 ElasticHarvest.prototype.delete = function(id){
     var _this = this;
     var es_resource = this.es_url + '/'+this.index+'/'+this.type+'/'+id;
+    console.log('[Elastic-Harvest] Deleting '+_this.type+'/'+id);
     return requestAsync({uri:es_resource, method: 'DELETE', body: ""}).then(function(response){
         var body = JSON.parse(response[1]);
         if(!body.found){
@@ -1011,23 +1028,63 @@ ElasticHarvest.prototype.delete = function(id){
         }
         return body;
     });
-}
+};
 
 
 /** POST RELATED **/
 //Note - only 1 "after" callback is allowed per endpoint, so if you enable autosync, you're giving it up to elastic-harvest.
-ElasticHarvest.prototype.enableAutoSync= function(endpoint){
+ElasticHarvest.prototype.enableAutoSync= function(){
+    var endpoint = inflect.singularize(this.type);
     var _this = this;
-    this.harvest_app.after(endpoint, function (req, res, next) {
-        if (req.method === 'POST' || (req.method === 'PUT' && this.id)) {
-            return _this.expandAndSync(this)
-                .then(function(response){
-                    return unexpandEntity(response);
-                });
-        } else {
-            return this;
+    if(this.harvest_app._oplogEnabled){
+        console.warn("[Elastic-Harvest] Will sync primary resource data via oplog");
+        this.harvest_app.onChange(endpoint,{insert:resourceChanged,update:resourceChanged,delete: resourceDeleted});
+        function resourceDeleted(resourceId){
+            _this.delete(resourceId)
+                .catch(function(error){
+                    //This sort of error will not be solved by retrying it a bunch of times.
+                    console.warn(error);
+                })
+        };
+
+        function resourceChanged (resourceId){
+            console.log("[Elastic-Harvest] Syncing "+ _this.type +'/'+resourceId);
+            return _this.harvest_app.adapter.find(endpoint,resourceId.toString())
+                .then(function(resource){
+                    if (!resource){
+                        throw new Error("[Elastic-Harvest] Missing "+ _this.type +'/'+resourceId+". Cannot sync with elastic-harvest.")
+                    }
+                    return _this.expandAndSync(resource)
+                })
+                .catch(function(error){
+                    //This sort of error will not be solved by retrying it a bunch of times.
+                    console.warn(error);
+                })
         }
-    });
+
+    }else{
+        console.warn("[Elastic-Harvest] Will sync primary resource data via harvest:after");
+
+        this.harvest_app.after(endpoint, function (req, res, next) {
+            var deletedResource = this;
+            if (req.method === 'POST' || (req.method === 'PUT' && this.id)) {
+                console.log("[Elastic-Harvest] Syncing "+ _this.type +'/'+this.id);
+                return _this.expandAndSync(this)
+                    .then(function(response){
+                        return unexpandEntity(response);
+                    });
+            } else if (req.method === 'DELETE'){
+                return this;
+
+                return _this.delete(this.id)
+                    .then(function(){
+                        return deletedResource;
+                    })
+            } else {
+                return this;
+            }
+        });
+    }
 };
 
 //expandAndSync: will expand all links in the model, then push it to elastic search.
@@ -1201,7 +1258,7 @@ ElasticHarvest.prototype.initializeMapping=function(mapping,shouldNotRetry){
     return requestAsync({uri:es_resource, method: 'PUT', body:reqBody}).then(function(response){
         var body = JSON.parse(response[1]);
         if(body.error){
-            if(_s.startsWith(body.error,"IndexMissingException") && !shouldNotRetry){
+            if(_s.contains(body.error,"IndexMissingException") && !shouldNotRetry){
                 console.warn("[Elastic-Harvest] Looks like we need to create an index - I'll handle that automatically for you & will retry adding the mapping afterward.");
                 return _this.initializeIndex().then(function(){return _this.initializeMapping(mapping,true)});
             }else{
