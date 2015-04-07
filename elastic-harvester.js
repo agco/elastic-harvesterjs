@@ -8,8 +8,7 @@ var inflect= require('i')();
 var _ = require('lodash');
 var RSVP = require('rsvp');
 var Util =  require("./Util");
-var AutoUpdateInputGenerator = require("./autoUpdateInputGenerator");
-var autoUpdateInputGenerator  = new AutoUpdateInputGenerator();
+var autoUpdateInputGenerator  = new (require("./autoUpdateInputGenerator"))();
 
 //Bonsai wants us to only send 1 ES query at a time, for POSTs/PUTs. Later on we can add more pools for other requests if needed.
 var http = require('http');
@@ -943,16 +942,6 @@ ElasticHarvest.prototype.enableAutoIndexUpdateOnModelUpdate = function (endpoint
                 return entity;
             }
         });
-
-        //Supports deletes
-        //this.harvest_app.before(endpoint, function (req, res, next) {
-        //    var entity = this;
-        //    if ((_.contains(['DELETE'], req.method)) && entity.id) {
-        //        return _this.updateIndexForLinkedDocument(idField, entity);
-        //    } else {
-        //        return this;
-        //    }
-        //});
     }
 };
 

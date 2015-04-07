@@ -8,7 +8,6 @@ var options = {
     db: 'testDB',
     inflect: true
 };
-console.log(JSON.stringify(options));
 var runningAsScript = !module.parent;
 
 /*
@@ -24,7 +23,6 @@ var runningAsScript = !module.parent;
 
 
 function InputGenerator(){
-
 }
 
 
