@@ -51,6 +51,7 @@
   "main": "./elastic-harvester.js",
   "files": [
     "elastic-harvester.js",
+    "autoUpdateInputGenerator.js",
     "LICENSE",
     "Util.js"
   ]

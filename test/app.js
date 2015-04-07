@@ -35,8 +35,7 @@ function createApp(options) {
         peopleSearch = new ElasticHarvest(harvestApp, options.es_url,options.es_index, "people");
         peopleSearch.setHarvestRoute(harvestApp.route('person'));
         peopleSearch.enableAutoSync("person");
-        peopleSearch.enableAutoIndexUpdateOnModelUpdate("pet","links.pets.id");
-        peopleSearch.enableAutoIndexUpdateOnModelUpdate("toy","links.pets.toys.id");
+        peopleSearch.enableAutoIndexUpdate();
 
         return peopleSearch.deleteIndex()
             .then(function(){
