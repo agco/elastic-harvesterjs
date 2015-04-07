@@ -2,14 +2,13 @@ language: node_js
 node_js:
 - '0.10'
 services:
-- mongodb
 - elasticsearch
 before_script:
-  - echo "replSet = esTestSet" | sudo tee -a /etc/mongodb.conf
-  - sudo service mongodb restart
+  - mkdir testdb
+  - mongod --port 27017 --dbpath testdb --replSet rs0 --oplogSize 20 --noprealloc --fork --smallfiles --logpath mongodb.log
+  - sleep 3
+  - mongo admin --eval 'printjson(rs.initiate());'
   - sleep 20
-  - mongo --eval 'rs.initiate()'
-  - sleep 15
   - node test/events.js &
   - sleep 20
 
