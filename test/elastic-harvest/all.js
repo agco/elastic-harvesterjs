@@ -5,19 +5,20 @@ var RSVP = require('rsvp');
 var request = require('supertest');
 
 var Promise = RSVP.Promise;
+var bluebird = require('bluebird');
 var fixtures = require('./../fixtures.json');
 
 var baseUrl = 'http://localhost:' + process.env.PORT;
 var keys = {};
 
-var ES_INDEX_WAIT_TIME = 1000; //we'll wait this amount of time before querying the es_index.
+var ES_INDEX_WAIT_TIME = 3000; //we'll wait this amount of time before querying the es_index.
 _.each(fixtures, function (resources, collection) {
     keys[collection] = inflect.pluralize(collection);
 });
 
 describe('using mongodb + elastic search', function () {
     var ids = {};
-    this.timeout(5000);
+    this.timeout(100000);
     before(function (done) {
         this.app
             .then(function (harvestApp){
@@ -31,7 +32,7 @@ describe('using mongodb + elastic search', function () {
                             var db = collectionParts[0];
 
                             if(name && (name !== "system") && db && (db === expectedDbName)){
-                                return new RSVP.Promise(function(resolve){
+                                return new Promise(function(resolve){
                                     harvestApp.adapter.mongoose.connections[1].db.collection(name, function(err, collection){
                                         collection.remove({},null, function(){
                                             console.log("Wiped collection", name);
@@ -46,7 +47,7 @@ describe('using mongodb + elastic search', function () {
                 });
             }).then(function(wipeFns){
                 console.log("Wiping collections:");
-                return RSVP.all(wipeFns);
+                return bluebird.all(wipeFns);
             }).then(function () {
                 console.log("--------------------");
                 console.log("Running tests:");
@@ -77,7 +78,7 @@ describe('using mongodb + elastic search', function () {
                     }));
                 });
 
-                return RSVP.all(createResources).then(function() {
+                return bluebird.all(createResources).then(function() {
                     setTimeout(done,ES_INDEX_WAIT_TIME);
                     //done();
                 });
@@ -87,35 +88,41 @@ describe('using mongodb + elastic search', function () {
             });
     });
 
-
     require("./associations")(baseUrl,keys,ids,ES_INDEX_WAIT_TIME);
     require("./limits")(baseUrl,keys,ids);
     require("./includes")(baseUrl,keys,ids,ES_INDEX_WAIT_TIME);
     require("./filters")(baseUrl,keys,ids);
     require("./aggregations")(baseUrl,keys,ids,ES_INDEX_WAIT_TIME);
-    //require("./resources")(baseUrl,keys,ids,ES_INDEX_WAIT_TIME);
     require("./mappingMaker")();
+    require("./autoUpdateInputGenerator")();
+    require("./deletes")(baseUrl,keys,ids,ES_INDEX_WAIT_TIME);
 
-    after(function (done) {
-        _.each(fixtures, function (resources, collection) {
-            var key = keys[collection];
 
-            RSVP.all(ids[key].map(function (id) {
-                return new Promise(function (resolve) {
-                    request(baseUrl)
-                        .del('/' + key + '/' + id)
-                        .expect(204)
-                        .end(function (error) {
-                            should.not.exist(error);
-                            resolve();
+    //require("./resources")(baseUrl,keys,ids,ES_INDEX_WAIT_TIME);
+
+    after(function () {
+            var promises = [];
+            return bluebird.delay(2000).then(function(){
+                _.each(fixtures, function (resources, collection) {
+                    var key = keys[collection];
+
+                    promises.push(bluebird.all(ids[key].map(function (id) {
+                        return new Promise(function (resolve) {
+                            request(baseUrl)
+                                .del('/' + key + '/' + id)
+                                .expect(204)
+                                .end(function (error) {
+                                    should.not.exist(error);
+                                    resolve();
+                                });
                         });
+                    })));
+
                 });
-            })).then(function () {
-                done();
-            }, function () {
-                throw new Error('Failed to delete resources.');
-            });
-        });
+                return bluebird.all(promises);
+
+            })
     });
+
 
 });

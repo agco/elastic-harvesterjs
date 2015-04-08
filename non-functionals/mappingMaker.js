@@ -42,7 +42,7 @@ function MappingMaker(){
 
 MappingMaker.prototype.generateMapping=function(harvest_app,pov,outputFile){
     if(_.isString(harvest_app)){
-        harvest_app = require("../"+harvest_app)(options);
+        harvest_app = require(harvest_app)(options);
     }else{
         harvest_app = Promise.resolve(harvest_app);
     }
@@ -148,9 +148,11 @@ function make(harvest_app,pov){
                         "type": "boolean"
                     }
                 } else if(fnType=="array"){
-                    console.warn("[elastic-harvest] Array-type scaffolding not yet implemented; The elastic-search mapping scaffolded for this app will be incomplete.")
+                    console.warn("[mapping-maker] Array-type scaffolding not yet implemented; The elastic-search mapping scaffolded for this app will be incomplete wrt '"+propertyName+"' property.");
                 } else if(fnType=="buffer"){
-                    console.warn("[elastic-harvest] Buffer-type scaffolding not yet implemented; The elastic-search mapping scaffolded for this app will be incomplete.")
+                    console.warn("[mapping-maker] Buffer-type scaffolding not yet implemented; The elastic-search mapping scaffolded for this app will be incomplete wrt '"+propertyName+"' property.");
+                }else{
+                    console.warn("[mapping-maker] unsupported type; The elastic-search mapping scaffolded for this app will be incomplete wrt '"+propertyName+"' property.");
                 }
             }
         });
