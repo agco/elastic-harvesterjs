@@ -69,10 +69,9 @@ InputGenerator.prototype.make = function(harvest_app,pov){
     var path ="links";
 
     function getNextLevelSchema(propertyName,propertyValue,path,depth) {
-        console.log('path',path+".id");
-            if(depth==maxDepth){
-                return;
-            }
+        if(depth==maxDepth){
+            return;
+        }
         retVal[path+".id"]=propertyValue;
         harvest_app._schema[propertyValue] && getLinkedSchemas(harvest_app._schema[propertyValue],path,depth);
     }
