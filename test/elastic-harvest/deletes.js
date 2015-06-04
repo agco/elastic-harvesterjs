@@ -36,7 +36,9 @@ module.exports = function(baseUrl,keys,ids) {
 
     function killDilbert(){
         var dilbertsId = ids["people"][0];
-        return $http.del(baseUrl+"/people/"+dilbertsId,{json:{}});
+        return $http.del(baseUrl+"/people/"+dilbertsId,{json:{}})
+        .finally(function(res) {
+        })
     }
 
     function reviveDilbert(){

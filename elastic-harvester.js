@@ -1,4 +1,3 @@
-var ObjectId = require('mongoose').Types.ObjectId;
 var request = require('request');
 var bluebird = require('bluebird');
 var requestAsync = bluebird.promisify(require('request'));
@@ -441,11 +440,11 @@ function unexpandEntity(sourceObject,includeFields){
     _.each(sourceObject.links || [],function(val,key){
         if(!_.isArray(sourceObject.links[key])){
             //I know the extra .toString seems unnecessary, but sometimes val.id is already an objectId, and other times its a string.
-            sourceObject.links[key] = ObjectId(val.id.toString());
+            sourceObject.links[key] = val.id.toString();
 
         }else{
             _.each(sourceObject.links[key],function(innerVal,innerKey){
-                sourceObject.links[key][innerKey] = ObjectId(innerVal.id.toString());
+                sourceObject.links[key][innerKey] = innerVal.id.toString();
             })
         }
     })
@@ -535,8 +534,23 @@ ElasticHarvest.prototype.getEsQueryBody = function (predicates, nestedPredicates
             }
 
             var val = value.replace(/,/g," ");
-            fragment = {"query": {"match": {}}};
-            fragment["query"]["match"][field] = {query:val,lenient:true};
+
+            if (value.indexOf(',') > -1) {
+                chunks = value.split(',');
+                val = {
+                    should : chunks.map(function(chunk) {
+                        var match = {};
+                        match[field] = chunk;
+                        return {match : match};
+                    })
+                };
+
+                fragment = {"query": {"bool": {}}};
+                fragment["query"]["bool"] = val;
+            } else {
+                fragment = {"query": {"match": {}}};
+                fragment["query"]["match"][field] = {query:val,lenient:true};
+            }
         }
         return fragment;
     };

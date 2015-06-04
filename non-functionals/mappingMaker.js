@@ -74,7 +74,7 @@ function make(harvest_app,pov){
     var schemaName = inflect.singularize(pov);
     var startingSchema = harvest_app._schema[schemaName];
 
-    var maxDepth=3;
+    var maxDepth=4;
     var depth=0;
 
     var retVal = {};
@@ -130,6 +130,10 @@ function make(harvest_app,pov){
             }else{
                 var fnType = getFunctionType(propertyValue);
                 if(fnType=="string"){
+                    cursor.id={
+                        "type":"string",
+                        "index": "not_analyzed"
+                    }
                     cursor[propertyName]={
                         "type":"string",
                         "index": "not_analyzed"
