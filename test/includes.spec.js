@@ -7,13 +7,9 @@ var seeder = require('./seeder.js');
 describe("includes", function () {
     var config, ids;
 
-    function seed() {
+    before(function () {
         config = this.config;
-        this.timeout(config.esIndexWaitTime + 1000);
-        return seeder(this.harvesterApp).dropCollectionsAndSeed('people', 'pets', 'toys').then(function (result) {
-            ids = result;
-        });
-    }
+    });
 
     function linkToysWithPets() {
         var payload = {};
@@ -45,7 +41,12 @@ describe("includes", function () {
 
     describe('should be able to add linked documents', function () {
 
-        before(seed);
+        before(function () {
+            this.timeout(config.esIndexWaitTime + 1000);
+            return seeder(this.harvesterApp).dropCollectionsAndSeed('people', 'pets', 'toys').then(function (result) {
+                ids = result;
+            });
+        });
         it('i.e. toys to pets', function (done) {
             linkToysWithPets().end(function (error, response) {
                 should.not.exist(error);
@@ -67,7 +68,9 @@ describe("includes", function () {
 
     describe('when documents are linked', function () {
         before(function () {
-            return seed.apply(this).then(function () {
+            this.timeout(config.esIndexWaitTime + 1000);
+            return seeder(this.harvesterApp).dropCollectionsAndSeed(false, 'people', 'pets', 'toys').then(function (result) {
+                ids = result;
                 var peopleAndPetsPromise = new Promise(function (resolve, reject) {
                     linkPeopleWithPets().end(function (err) {
                         err ? reject(err) : resolve();

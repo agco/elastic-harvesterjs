@@ -11,7 +11,7 @@ describe("filters", function () {
     var config, ids;
     before(function () {
         config = this.config;
-        this.timeout(config.esIndexWaitTime * 2 + 1000);
+        this.timeout(config.esIndexWaitTime + 1000);
         return seeder(this.harvesterApp).dropCollectionsAndSeed(false, 'people', 'pets').then(function (result) {
             ids = result;
             return new Promise(function (resolve) {
