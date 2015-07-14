@@ -45,8 +45,9 @@ function ElasticHarvest(harvest_app,es_url,index,type,options) {
         var sortParams = req.query["sort"];
         sortParams && (sortParams = sortParams.split(','));
 
-        var reservedQueryTerms = ["aggregations","aggregations.fields","include","limit","offset","sort","fields"];
+        var reservedQueryTerms = ["aggregations","aggregations.fields", "include","limit","offset","sort","fields"];
         reservedQueryTerms = reservedQueryTerms.concat(getAggregationFields(req.query));
+        console.log(reservedQueryTerms)
         var reservedQueryTermLookup = Util.toObjectLookup(reservedQueryTerms);
 
         _.each(req.query, function (value,key) {
@@ -81,7 +82,19 @@ function ElasticHarvest(harvest_app,es_url,index,type,options) {
         }
         var aggregationObjects = getAggregationObjects(req.query);
 
+        console.log(aggregationObjects)
+        var sampleAggregation;
+        // aggregationObjects.forEach(function(aggObject, index) {
+        //     console.log(aggObject.type, index)
+        //     if(aggObject.type === 'sample') {
+        //         aggregationObjects.splice(index, 1);
+        //     }
+        // })
 
+        console.log(aggregationObjects)
+
+        console.log(predicates)
+        console.log(nestedPredicates)
 
         var esQuery = _this.getEsQueryBody(predicates, nestedPredicates, geoPredicate,aggregationObjects, sortParams);
         esSearch(esQuery,aggregationObjects,req,res,next);
@@ -91,7 +104,8 @@ function ElasticHarvest(harvest_app,es_url,index,type,options) {
         top_hits:["type","sort","limit","fields","include"],
         terms:["type","order","aggregations","property"],
         stats:["type","property"],
-        extended_stats:["type","property"]
+        extended_stats:["type","property"],
+        sample:["type","maxSamples"]
     };
 
     function setValueIfExists(obj,property,val,fn){
@@ -127,6 +141,7 @@ function ElasticHarvest(harvest_app,es_url,index,type,options) {
         supplimentalBanList=supplimentalBanList || {};
 
         _.each(query[aggParam].split(','),function(agg){
+            console.log('----', agg)
             assertAggNameIsAllowed(agg,supplimentalBanList);
             supplimentalBanList[agg]=true;
             var type = query[agg +".type"];
@@ -157,6 +172,7 @@ function ElasticHarvest(harvest_app,es_url,index,type,options) {
             setValueIfExists(aggregation,"name",agg,assertIsNotArray);
             setValueIfExists(aggregation,"property",query[agg+".property"],assertIsNotArray);
             setValueIfExists(aggregation,"type",query[agg+".type"] || "terms",assertIsNotArray);
+            setValueIfExists(aggregation,"maxSamples",query[agg+".maxSamples"],assertIsNotArray);
             setValueIfExists(aggregation,"order",query[agg+".order"],assertIsNotArray);
             setValueIfExists(aggregation,"sort",query[agg+".sort"],assertIsNotArray);
             setValueIfExists(aggregation,"limit",query[agg+".limit"],assertIsNotArray);

@@ -71,6 +71,8 @@ describe('aggregations', function () {
                 done();
             });
         });
+
+
     });
     describe('top_hits', function () {
         it('should be possible to do a level 1 top_hits aggregation', function (done) {
@@ -151,6 +153,7 @@ describe('aggregations', function () {
                 should.not.exist(err);
                 var body = JSON.parse(res.text);
                 should.exist(body.linked.pets);
+                console.log(body)
                 (body.linked.pets.length).should.equal(1);
                 (body.linked.pets[0].id).should.equal(ids.pets[0]);
                 done();
@@ -168,4 +171,39 @@ describe('aggregations', function () {
                 });
         });
     });
+
+    describe('Sampling', function() {
+        beforeEach(function() {
+            this.timeout(config.esIndexWaitTime + 10000);
+            return seeder(this.harvesterApp).dropCollections('people')
+            .then(function() {
+                console.log('dropped')
+                var people = _.times(10, function(index) {
+                    return {
+                        name : '' + index,
+                        "appearances": 3457,
+                        id: 'b767ffc1-0ab6-11e5-a3f4-470467a3b6a' + index
+                    };
+                });
+
+                return seeder(this.harvesterApp).post('people', people);
+            }.bind(this))
+            .then(function (res) {
+                return Promise.delay(config.esIndexWaitTime + 1000);
+            })
+        });
+
+        it('should return 20 results of 100 when max sampled is 20', function (done) {
+            this.timeout(config.esIndexWaitTime + 10000);
+            request(config.baseUrl).get('/people/search?aggregations=sampleTrackingData&sampleTrackingData.type=sample&sampleTrackingData.maxSamples=400').expect(200).end(function (err, res) {
+                should.not.exist(err);
+                var body = JSON.parse(res.text);
+                console.log(body)
+                //should.exist(body.meta.aggregations.name);
+                //(body.meta.aggregations.name.length).should.equal(fixtures().people.length);
+                done();
+            });
+        });
+
+    })
 });
