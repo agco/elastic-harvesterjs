@@ -193,9 +193,9 @@ describe('aggregations', function () {
             })
         });
 
-        it('should return 20 results of 100 when max sampled is 20', function (done) {
-            this.timeout(config.esIndexWaitTime + 10000);
-            request(config.baseUrl).get('/people/search?aggregations=sampleTrackingData&sampleTrackingData.type=sample&sampleTrackingData.maxSamples=400').expect(200).end(function (err, res) {
+        it.only('should return 20 results of 100 when max sampled is 20', function (done) {
+            this.timeout(config.esIndexWaitTime + 7000);
+            request(config.baseUrl).get('/people/search?name=1&aggregations=sampleTrackingData&sampleTrackingData.type=sample&sampleTrackingData.maxSamples=400').expect(200).end(function (err, res) {
                 should.not.exist(err);
                 var body = JSON.parse(res.text);
                 console.log(body)

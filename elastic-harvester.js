@@ -1,6 +1,7 @@
 var request = require('request');
-var bluebird = require('bluebird');
-var requestAsync = bluebird.promisify(require('request'));
+var Promise = require('bluebird');
+var requestAsync = Promise.promisify(require('request'));
+var $http = require('http-as-promised');
 
 var _s = require('underscore.string');
 var inflect= require('i')();
@@ -81,20 +82,6 @@ function ElasticHarvest(harvest_app,es_url,index,type,options) {
             });
         }
         var aggregationObjects = getAggregationObjects(req.query);
-
-        console.log(aggregationObjects)
-        var sampleAggregation;
-        // aggregationObjects.forEach(function(aggObject, index) {
-        //     console.log(aggObject.type, index)
-        //     if(aggObject.type === 'sample') {
-        //         aggregationObjects.splice(index, 1);
-        //     }
-        // })
-
-        console.log(aggregationObjects)
-
-        console.log(predicates)
-        console.log(nestedPredicates)
 
         var esQuery = _this.getEsQueryBody(predicates, nestedPredicates, geoPredicate,aggregationObjects, sortParams);
         esSearch(esQuery,aggregationObjects,req,res,next);
@@ -397,6 +384,18 @@ function ElasticHarvest(harvest_app,es_url,index,type,options) {
     }
 
     function esSearch(esQuery,aggregationObjects,req,res) {
+
+        console.log(aggregationObjects)
+        var sampleAggregation;
+
+        aggregationObjects.forEach(function(aggObject, index) {
+            console.log(aggObject.type, index)
+            if(aggObject.type === 'sample') {
+                aggregationObjects.splice(index, 1);
+                sampleAggregation = aggObject;
+            }
+        });
+
         var params=[];
         var query=req.query;
         query['include'] && params.push("include="+ query['include']);
@@ -405,13 +404,22 @@ function ElasticHarvest(harvest_app,es_url,index,type,options) {
 
         var queryStr = '?'+params.join('&');
 
-        var es_resource = es_url + '/'+index+'/'+type+'/_search'+queryStr;
-        request(es_resource, {method: 'GET', body: esQuery}, function (error, response, body) {
+        var es_resource = es_url + '/' + index + '/' + type + '/_search' + queryStr;
+        console.log(esQuery)
+        Promise.resolve()
+        .then(function() {
+            if(sampleAggregation) return $http({url : es_resource, method: 'GET', body: esQuery});
+        })
+        .then(function(res) {
+            console.log('xxxxxxxxxxxxxxxxxxxx', res.body)
+            return $http({url : es_resource, method: 'GET', body: esQuery})    
+        })
+        .spread(function (response) {;
             var es_results;
-            body && (es_results = JSON.parse(body));
-            if (error || es_results.error) {
+            response.body && (es_results = JSON.parse(response.body));
+            console.log(es_results)
+            if (es_results.error) {
                 es_results.error && (error=es_results.error);
-                console.warn(error);
                 throw new Error("Your query was malformed, so it failed. Please check the api to make sure you're using it correctly.");
             } else {
                 var includes = req.query["include"],
@@ -422,6 +430,9 @@ function ElasticHarvest(harvest_app,es_url,index,type,options) {
                 fields && fields.push("id");
                 return sendSearchResponse(es_results, res,includes,fields,aggregationObjects);
             }
+        })
+        .catch(function() {
+            throw new Error("Your query was malformed, so it failed. Please check the api to make sure you're using it correctly.");
         });
     }
 
@@ -501,7 +512,7 @@ function getResponseArrayFromESResults(results,fields){
 ElasticHarvest.prototype.getEsQueryBody = function (predicates, nestedPredicates, geoPredicate,aggregationObjects,sortParams) {
 
     var createEsQueryFragment = function (fields, queryVal) {
-
+        console.log('xxxxx',fields)
         return {
             "query": {
                 "query_string": {
