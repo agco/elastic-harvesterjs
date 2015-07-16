@@ -144,8 +144,7 @@ function make(harvest_app,pov){
                     }
                 } else if(fnType=="date"){
                     cursor[propertyName]={
-                        "type": "date",
-                        "format": "HH:mm"
+                        "type": "date"
                     }
                 } else if(fnType=="boolean"){
                     cursor[propertyName]={

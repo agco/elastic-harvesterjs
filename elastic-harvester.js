@@ -1099,7 +1099,7 @@ ElasticHarvest.prototype.sync = function(model){
     var options = {uri: this.es_url + '/'+this.index+'/'+this.type+'/' + model.id, body: esBody,pool:postPool};
 
     return new RSVP.Promise(function (resolve, reject) {
-        request.put(options, function (error, response, body) {
+            request.put(options, function (error, response, body) {
             body = JSON.parse(body);
             if (error || body.error) {
                 var errMsg = error?error.message?error.message:JSON.stringify(error):JSON.stringify(body.error);
