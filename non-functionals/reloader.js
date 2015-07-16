@@ -17,7 +17,10 @@ var promiseWhile = function(condition, action) {
         if (!condition()) return resolver.resolve();
         return action()
             .then(loop)
-            .catch(resolver.reject);
+            .catch(function(err) {
+                console.warn(err);
+                throw err;
+            });
     };
 
     process.nextTick(loop);
@@ -72,7 +75,7 @@ Reloader.prototype.pagedReload = function(){
     function getBatch() {
         return reloaderThis.massGet(PAGE_SIZE, offset)
             .then(function(body) {
-                var entities = bo1dy[reloaderThis.type];
+                var entities = body[reloaderThis.type];
 
                 lastPageSize = entities.length;
                 offset += PAGE_SIZE;
