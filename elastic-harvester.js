@@ -391,8 +391,8 @@ function ElasticHarvest(harvest_app,es_url,index,type,options) {
         aggregationObjects.forEach(function(aggObject, index) {
             console.log(aggObject.type, index)
             if(aggObject.type === 'sample') {
-                aggregationObjects.splice(index, 1);
                 sampleAggregation = aggObject;
+                aggregationObjects.splice(index, 1);
             }
         });
 
@@ -405,19 +405,40 @@ function ElasticHarvest(harvest_app,es_url,index,type,options) {
         var queryStr = '?'+params.join('&');
 
         var es_resource = es_url + '/' + index + '/' + type + '/_search' + queryStr;
-        console.log(esQuery)
+        
         Promise.resolve()
         .then(function() {
-            if(sampleAggregation) return $http({url : es_resource, method: 'GET', body: esQuery});
+            // if sampleAggregation make the query to see how many hits we have
+            var countUrl = es_url + '/' + index + '/' + type + '/_count' + queryStr;
+            var countQuery = _.clone(JSON.parse(esQuery));
+            
+            delete countQuery.aggs;
+            if(sampleAggregation) return $http({url : countUrl, method: 'GET', body: JSON.stringify(countQuery)});
         })
-        .then(function(res) {
-            console.log('xxxxxxxxxxxxxxxxxxxx', res.body)
-            return $http({url : es_resource, method: 'GET', body: esQuery})    
-        })
-        .spread(function (response) {;
+        .spread(function(response) {
             var es_results;
             response.body && (es_results = JSON.parse(response.body));
             console.log(es_results)
+            var total = es_results && es_results.count;
+            total = total || 0;
+            var skip_rate = Math.max(0, Math.floor(total/sampleAggregation.maxSamples) - 1);
+            
+            var query = JSON.parse(esQuery);
+
+            query.query.filtered.filter = query.query.filtered.filter || {};
+            query.query.filtered.filter.script = {
+                script: "sampler",
+                lang: "groovy",
+                "params" : {
+                    "n" : skip_rate
+                }
+            };
+            return $http({url : es_resource, method: 'GET', body: JSON.stringify(query)});  
+        })
+        .spread(function (response) {
+            var es_results;
+            response.body && (es_results = JSON.parse(response.body));
+            console.log(es_results.hits.hits)
             if (es_results.error) {
                 es_results.error && (error=es_results.error);
                 throw new Error("Your query was malformed, so it failed. Please check the api to make sure you're using it correctly.");
@@ -431,7 +452,9 @@ function ElasticHarvest(harvest_app,es_url,index,type,options) {
                 return sendSearchResponse(es_results, res,includes,fields,aggregationObjects);
             }
         })
-        .catch(function() {
+        .catch(function(err, res) {
+            console.log('00000000000000', err, res)
+            console.log(err.stack)
             throw new Error("Your query was malformed, so it failed. Please check the api to make sure you're using it correctly.");
         });
     }
