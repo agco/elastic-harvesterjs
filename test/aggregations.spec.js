@@ -193,17 +193,34 @@ describe('aggregations', function () {
             })
         });
 
-        it.only('should return 20 results of 100 when max sampled is 20', function (done) {
-            this.timeout(config.esIndexWaitTime + 7000);
-            request(config.baseUrl).get('/people/search?aggregations=sampleTrackingData&sampleTrackingData.type=sample&sampleTrackingData.maxSamples=100').expect(200).end(function (err, res) {
+        it('should return 20 results of 100 when max sampled is 20', function (done) {
+            this.timeout(config.esIndexWaitTime + 10000);
+            request(config.baseUrl).get('/people/search?aggregations=sampleTrackingData&sampleTrackingData.type=sample&sampleTrackingData.maxSamples=20').expect(200).end(function (err, res) {
                 should.not.exist(err);
                 var body = JSON.parse(res.text);
-                console.log(body)
-                //should.exist(body.meta.aggregations.name);
-                //(body.meta.aggregations.name.length).should.equal(fixtures().people.length);
+                body.people.length.should.equal(20);
                 done();
             });
         });
 
+        it('should return 5 results of 100 when max sampled is 5', function (done) {
+            this.timeout(config.esIndexWaitTime + 10000);
+            request(config.baseUrl).get('/people/search?aggregations=sampleTrackingData&sampleTrackingData.type=sample&sampleTrackingData.maxSamples=5').expect(200).end(function (err, res) {
+                should.not.exist(err);
+                var body = JSON.parse(res.text);
+                body.people.length.should.equal(5);
+                done();
+            });
+        });
+
+        it('should return 100 results of 100 when max sampled is 100', function (done) {
+            this.timeout(config.esIndexWaitTime + 10000);
+            request(config.baseUrl).get('/people/search?aggregations=sampleTrackingData&sampleTrackingData.type=sample&sampleTrackingData.maxSamples=100').expect(200).end(function (err, res) {
+                should.not.exist(err);
+                var body = JSON.parse(res.text);
+                body.people.length.should.equal(100);
+                done();
+            });
+        });
     })
 });
