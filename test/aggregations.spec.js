@@ -178,9 +178,9 @@ describe('aggregations', function () {
             return seeder(this.harvesterApp).dropCollections('people')
             .then(function() {
                 console.log('dropped')
-                var people = _.times(10, function(index) {
+                var people = _.times(100, function(index) {
                     return {
-                        name : '' + index,
+                        name : 'name' + index,
                         "appearances": 3457,
                         id: 'b767ffc1-0ab6-11e5-a3f4-470467a3b6a' + index
                     };
@@ -195,7 +195,7 @@ describe('aggregations', function () {
 
         it.only('should return 20 results of 100 when max sampled is 20', function (done) {
             this.timeout(config.esIndexWaitTime + 7000);
-            request(config.baseUrl).get('/people/search?aggregations=sampleTrackingData&sampleTrackingData.type=sample&sampleTrackingData.maxSamples=5').expect(200).end(function (err, res) {
+            request(config.baseUrl).get('/people/search?aggregations=sampleTrackingData&sampleTrackingData.type=sample&sampleTrackingData.maxSamples=100').expect(200).end(function (err, res) {
                 should.not.exist(err);
                 var body = JSON.parse(res.text);
                 console.log(body)

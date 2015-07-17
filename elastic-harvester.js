@@ -424,21 +424,22 @@ function ElasticHarvest(harvest_app,es_url,index,type,options) {
             var skip_rate = Math.max(0, Math.floor(total/sampleAggregation.maxSamples) - 1);
             
             var query = JSON.parse(esQuery);
-
+            query.size = sampleAggregation.maxSamples;
             query.query.filtered.filter = query.query.filtered.filter || {};
             query.query.filtered.filter.script = {
                 script: "sampler",
                 lang: "groovy",
                 "params" : {
-                    "n" : skip_rate
+                    "count" : 0,
+                    "skip_rate" : 5
                 }
             };
             return $http({url : es_resource, method: 'GET', body: JSON.stringify(query)});  
         })
-        .spread(function (response) {
+        .spread(function (response) {;
             var es_results;
             response.body && (es_results = JSON.parse(response.body));
-            console.log(es_results.hits.hits)
+            console.log(es_results)
             if (es_results.error) {
                 es_results.error && (error=es_results.error);
                 throw new Error("Your query was malformed, so it failed. Please check the api to make sure you're using it correctly.");
