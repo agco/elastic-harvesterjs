@@ -12,7 +12,7 @@ module.exports = {
             inflect: true,
             oplogConnectionString: (process.env.OPLOG_MONGODB_URL || "mongodb://127.0.0.1:27017/local") + '?slaveOk=true',
             es_index: 'test-index',
-            es_url: process.env.ES_URL || "http://127.0.0.1:9300"
+            es_url: process.env.ES_URL || "http://127.0.0.1:9200"
         }
     }
 };

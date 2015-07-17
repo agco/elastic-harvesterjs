@@ -1,9 +1,7 @@
 var Promise = require('bluebird');
 var $http = require('http-as-promised');
 
-var Sampler = function () {
-
-};
+var Sampler = function () {};
 
 Sampler.prototype.checkAndSample = function(es_url, index, type, esQuery, aggregationObjects, query) {
     var sampleAggregation;
