@@ -429,7 +429,7 @@ function ElasticHarvest(harvest_app,es_url,index,type,options) {
                 script: "sampler",
                 lang: "groovy",
                 params : {
-                    count : 0,
+                    count : -1,
                     skip_rate : skip_rate
                 }
             };
