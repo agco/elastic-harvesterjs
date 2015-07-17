@@ -193,7 +193,7 @@ describe('aggregations', function () {
             })
         });
 
-        it.skip('should return 2 results of 10 when max sampled is 2', function (done) {
+        it.skip('should return 3 results of 10 when max sampled is 3', function (done) {
             this.timeout(config.esIndexWaitTime + 10000);
             request(config.baseUrl).get('/people/search?aggregations=sampleTrackingData&sampleTrackingData.type=sample&sampleTrackingData.maxSamples=3').expect(200).end(function (err, res) {
                 should.not.exist(err);
