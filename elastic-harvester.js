@@ -435,7 +435,7 @@ function ElasticHarvest(harvest_app,es_url,index,type,options) {
             };
 
             //if sample size is same as the total, don't skip anything, just return all
-            if (sampleAggregation.maxSamples === total) {
+            if (sampleAggregation.maxSamples >= total) {
                 delete query.query.filtered.filter.script;
             };
 

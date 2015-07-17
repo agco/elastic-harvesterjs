@@ -222,5 +222,15 @@ describe('aggregations', function () {
                 done();
             });
         });
+
+        it.skip('should return 10 results of 10 when max sampled is 15', function (done) {
+            this.timeout(config.esIndexWaitTime + 10000);
+            request(config.baseUrl).get('/people/search?aggregations=sampleTrackingData&sampleTrackingData.type=sample&sampleTrackingData.maxSamples=15').expect(200).end(function (err, res) {
+                should.not.exist(err);
+                var body = JSON.parse(res.text);
+                body.people.length.should.equal(10);
+                done();
+            });
+        });
     })
 });
