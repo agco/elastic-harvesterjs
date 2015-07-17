@@ -193,7 +193,7 @@ describe('aggregations', function () {
             })
         });
 
-        it('should return 2 results of 10 when max sampled is 2', function (done) {
+        it.skip('should return 2 results of 10 when max sampled is 2', function (done) {
             this.timeout(config.esIndexWaitTime + 10000);
             request(config.baseUrl).get('/people/search?aggregations=sampleTrackingData&sampleTrackingData.type=sample&sampleTrackingData.maxSamples=3').expect(200).end(function (err, res) {
                 should.not.exist(err);
@@ -203,7 +203,7 @@ describe('aggregations', function () {
             });
         });
 
-        it('should return 5 results of 10 when max sampled is 5', function (done) {
+        it.skip('should return 5 results of 10 when max sampled is 5', function (done) {
             this.timeout(config.esIndexWaitTime + 10000);
             request(config.baseUrl).get('/people/search?aggregations=sampleTrackingData&sampleTrackingData.type=sample&sampleTrackingData.maxSamples=5').expect(200).end(function (err, res) {
                 should.not.exist(err);
@@ -213,7 +213,7 @@ describe('aggregations', function () {
             });
         });
 
-        it('should return 10 results of 10 when max sampled is 10', function (done) {
+        it.skip('should return 10 results of 10 when max sampled is 10', function (done) {
             this.timeout(config.esIndexWaitTime + 10000);
             request(config.baseUrl).get('/people/search?aggregations=sampleTrackingData&sampleTrackingData.type=sample&sampleTrackingData.maxSamples=10').expect(200).end(function (err, res) {
                 should.not.exist(err);
