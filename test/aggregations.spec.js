@@ -178,7 +178,7 @@ describe('aggregations', function () {
             return seeder(this.harvesterApp).dropCollections('people')
             .then(function() {
                 console.log('dropped')
-                var people = _.times(100, function(index) {
+                var people = _.times(10, function(index) {
                     return {
                         name : 'name' + index,
                         "appearances": 3457,
@@ -193,17 +193,17 @@ describe('aggregations', function () {
             })
         });
 
-        it('should return 20 results of 100 when max sampled is 20', function (done) {
+        it('should return 2 results of 10 when max sampled is 2', function (done) {
             this.timeout(config.esIndexWaitTime + 10000);
-            request(config.baseUrl).get('/people/search?aggregations=sampleTrackingData&sampleTrackingData.type=sample&sampleTrackingData.maxSamples=20').expect(200).end(function (err, res) {
+            request(config.baseUrl).get('/people/search?aggregations=sampleTrackingData&sampleTrackingData.type=sample&sampleTrackingData.maxSamples=3').expect(200).end(function (err, res) {
                 should.not.exist(err);
                 var body = JSON.parse(res.text);
-                body.people.length.should.equal(20);
+                body.people.length.should.equal(3);
                 done();
             });
         });
 
-        it('should return 5 results of 100 when max sampled is 5', function (done) {
+        it('should return 5 results of 10 when max sampled is 5', function (done) {
             this.timeout(config.esIndexWaitTime + 10000);
             request(config.baseUrl).get('/people/search?aggregations=sampleTrackingData&sampleTrackingData.type=sample&sampleTrackingData.maxSamples=5').expect(200).end(function (err, res) {
                 should.not.exist(err);
@@ -213,12 +213,12 @@ describe('aggregations', function () {
             });
         });
 
-        it('should return 100 results of 100 when max sampled is 100', function (done) {
+        it('should return 10 results of 10 when max sampled is 10', function (done) {
             this.timeout(config.esIndexWaitTime + 10000);
-            request(config.baseUrl).get('/people/search?aggregations=sampleTrackingData&sampleTrackingData.type=sample&sampleTrackingData.maxSamples=100').expect(200).end(function (err, res) {
+            request(config.baseUrl).get('/people/search?aggregations=sampleTrackingData&sampleTrackingData.type=sample&sampleTrackingData.maxSamples=10').expect(200).end(function (err, res) {
                 should.not.exist(err);
                 var body = JSON.parse(res.text);
-                body.people.length.should.equal(100);
+                body.people.length.should.equal(10);
                 done();
             });
         });
