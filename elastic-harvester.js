@@ -1049,6 +1049,7 @@ ElasticHarvest.prototype.simpleSearch = function (field,value) {
     return requestAsync({uri:es_resource, method: 'GET', body: reqBody}).then(function(response) {
         var es_results = JSON.parse(response[1]);
         if (es_results.error) {
+            console.log('[Elastic-Harvest] Error', es_results.error);
             throw new Error("Your query was malformed, so it failed. Please check the api to make sure you're using it correctly.");
         } else {
             return es_results;
