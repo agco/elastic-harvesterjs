@@ -193,7 +193,7 @@ describe('aggregations', function () {
             })
         });
 
-        it.only('should return 3 results of 10 when max sampled is 3', function (done) {
+        it('should return 3 results of 10 when max sampled is 3', function (done) {
             this.timeout(config.esIndexWaitTime + 10000);
             request(config.baseUrl).get('/people/search?script=sampler&script.maxSamples=3').expect(200).end(function (err, res) {
                 should.not.exist(err);
@@ -205,7 +205,7 @@ describe('aggregations', function () {
 
         it('should return 5 results of 10 when max sampled is 5', function (done) {
             this.timeout(config.esIndexWaitTime + 10000);
-            request(config.baseUrl).get('/people/search?aggregations=sampleTrackingData&sampleTrackingData.type=sample&sampleTrackingData.maxSamples=5').expect(200).end(function (err, res) {
+            request(config.baseUrl).get('/people/search?script=sampler&script.maxSamples=5').expect(200).end(function (err, res) {
                 should.not.exist(err);
                 var body = JSON.parse(res.text);
                 body.people.length.should.equal(5);
@@ -215,7 +215,7 @@ describe('aggregations', function () {
 
         it('should return 10 results of 10 when max sampled is 10', function (done) {
             this.timeout(config.esIndexWaitTime + 10000);
-            request(config.baseUrl).get('/people/search?aggregations=sampleTrackingData&sampleTrackingData.type=sample&sampleTrackingData.maxSamples=10').expect(200).end(function (err, res) {
+            request(config.baseUrl).get('/people/search?script=sampler&script.maxSamples=10').expect(200).end(function (err, res) {
                 should.not.exist(err);
                 var body = JSON.parse(res.text);
                 body.people.length.should.equal(10);
@@ -225,7 +225,7 @@ describe('aggregations', function () {
 
         it('should return 10 results of 10 when max sampled is 15', function (done) {
             this.timeout(config.esIndexWaitTime + 10000);
-            request(config.baseUrl).get('/people/search?aggregations=sampleTrackingData&sampleTrackingData.type=sample&sampleTrackingData.maxSamples=15').expect(200).end(function (err, res) {
+            request(config.baseUrl).get('/people/search?script=sampler&script.maxSamples=15').expect(200).end(function (err, res) {
                 should.not.exist(err);
                 var body = JSON.parse(res.text);
                 body.people.length.should.equal(10);

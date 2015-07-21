@@ -50,7 +50,7 @@ Sampler.prototype.checkAndSample = function(es_url, index, type, esQuery, aggreg
 
         //if sample size is same as the total, don't skip anything, just return all
         if (maxSamples >= total) {
-            delete query.query.filtered.filter.script;
+            delete queryParsed.query.filtered.filter.script;
         };
 
         console.log(query)
