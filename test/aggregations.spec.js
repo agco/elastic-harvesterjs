@@ -232,5 +232,33 @@ describe('aggregations', function () {
                 done();
             });
         });
+
+        it.only('should return 1 results of 10 when max sampled is 15 and query for 1 result', function (done) {
+            this.timeout(config.esIndexWaitTime + 10000);
+            request(config.baseUrl).get('/people/search?name=name1&script=sampler&script.maxSamples=15').expect(200).end(function (err, res) {
+                should.not.exist(err);
+                var body = JSON.parse(res.text);
+                body.people.length.should.equal(1);
+                done();
+            });
+        });
+
+        it('should return 1 results of 10 when max sampled is 15 and query for 1 result', function (done) {
+            this.timeout(config.esIndexWaitTime + 10000);
+            request(config.baseUrl).get('/people/search?script=sampler&script.maxSamples=15&aggregations=mostpopular&mostpopular.type=top_hits&mostpopular.sort=-appearances&mostpopular.limit=1').expect(200).end(function (err, res) {
+                should.not.exist(err);
+                var body = JSON.parse(res.text);
+                should.exist(body.meta.aggregations.name_agg);
+                (body.meta.aggregations.name_agg.length).should.equal(5);
+                should.exist(body.meta.aggregations.mostpopular);
+                (body.meta.aggregations.mostpopular.length).should.equal(1);
+                var max_appearances = 0;
+                _.each(fixtures().people, function (person) {
+                    person.appearances > max_appearances && (max_appearances = person.appearances);
+                });
+                (body.meta.aggregations.mostpopular[0].appearances).should.equal(max_appearances);
+                done();
+            });
+        });
     })
 });
