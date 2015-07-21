@@ -46,7 +46,7 @@ function ElasticHarvest(harvest_app,es_url,index,type,options) {
         var sortParams = req.query["sort"];
         sortParams && (sortParams = sortParams.split(','));
 
-        var reservedQueryTerms = ["aggregations","aggregations.fields", "include","limit","offset","sort","fields"];
+        var reservedQueryTerms = ["aggregations","aggregations.fields", "include","limit","offset","sort","fields", "script", "script.maxSamples"];
         reservedQueryTerms = reservedQueryTerms.concat(getAggregationFields(req.query));
         var reservedQueryTermLookup = Util.toObjectLookup(reservedQueryTerms);
 
@@ -90,8 +90,7 @@ function ElasticHarvest(harvest_app,es_url,index,type,options) {
         top_hits:["type","sort","limit","fields","include"],
         terms:["type","order","aggregations","property"],
         stats:["type","property"],
-        extended_stats:["type","property"],
-        sample:["type","maxSamples"]
+        extended_stats:["type","property"]
     };
 
     function setValueIfExists(obj,property,val,fn){
@@ -383,6 +382,7 @@ function ElasticHarvest(harvest_app,es_url,index,type,options) {
 
     function esSearch(esQuery,aggregationObjects,req,res) {
         var query = req.query;
+        
         AggSampler.checkAndSample(es_url, index, type, esQuery, aggregationObjects, query)
         .spread(function (response) {;
             var es_results;
