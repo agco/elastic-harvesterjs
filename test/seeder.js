@@ -131,6 +131,7 @@ module.exports = function (harvesterInstance, baseUrl) {
     return {
         dropCollections: dropCollections,
         dropCollectionsAndSeed: dropCollectionsAndSeed,
-        seedCustomFixture: seedCustomFixture
+        seedCustomFixture: seedCustomFixture,
+        post: post
     }
 };

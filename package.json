@@ -16,7 +16,7 @@
   },
   "dependencies": {
     "bluebird": "~2.3.2",
-    "http-as-promised": "0.1.x",
+    "http-as-promised": "~0.1.0",
     "i": "~0.3.2",
     "lodash": "~2.4.1",
     "mongoose": "3.8.12",

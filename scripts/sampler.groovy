@@ -1,0 +1,1 @@
+count=count+1;if(count % skip_rate == 0){ return 1 }; return 0;
