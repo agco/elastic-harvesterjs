@@ -8,7 +8,7 @@ var _ = require('lodash');
 var RSVP = require('rsvp');
 var Util =  require("./Util");
 var autoUpdateInputGenerator  = new (require("./autoUpdateInputGenerator"))();
-var AggSampler = require('./aggs/sampler');
+var AggSampler = require('./lib/scripts/sampler');
 
 //Bonsai wants us to only send 1 ES query at a time, for POSTs/PUTs. Later on we can add more pools for other requests if needed.
 var http = require('http');
