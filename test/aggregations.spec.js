@@ -172,12 +172,115 @@ describe('aggregations', function () {
         });
     });
 
-    describe('Sampling', function() {
+    describe.skip('Sampling in conjunction with aggs', function () {
+        it('should be possible to do a level 1 top_hits aggregation', function (done) {
+            request(config.baseUrl).get('/people/search?aggregations=mostpopular&mostpopular.type=top_hits&mostpopular.sort=-appearances&mostpopular.limit=1&script=sampler&script.maxSamples=1').expect(200).end(function (err,
+                                                                                                                                                                                         res) {
+                should.not.exist(err);
+                var body = JSON.parse(res.text);
+                body.people.length.should.equal(1);
+                should.exist(body.meta.aggregations.mostpopular);
+                (body.meta.aggregations.mostpopular.length).should.equal(1);
+                var max_appearances = 0;
+                _.each(fixtures().people, function (person) {
+                    person.appearances > max_appearances && (max_appearances = person.appearances);
+                });
+                (body.meta.aggregations.mostpopular[0].appearances).should.equal(max_appearances);
+                done();
+            });
+        });
+
+        it('should be possible to specify which fields are returned by a level 1 top_hits aggregation', function (done) {
+            request(config.baseUrl).get('/people/search?aggregations=mostpopular&mostpopular.type=top_hits&mostpopular.sort=-appearances&mostpopular.limit=1&mostpopular.fields=name&script=sampler&script.maxSamples=1').expect(200).end(function (err,
+                                                                                                                                                                                                                 res) {
+                should.not.exist(err);
+                var body = JSON.parse(res.text);
+                body.people.length.should.equal(1);
+                should.exist(body.meta.aggregations.mostpopular);
+                (body.meta.aggregations.mostpopular.length).should.equal(1);
+                (Object.keys(body.meta.aggregations.mostpopular[0]).length).should.equal(1);
+
+                var max_appearances = 0;
+                var max_appearances_name = "";
+                _.each(fixtures().people, function (person) {
+                    person.appearances > max_appearances && (max_appearances = person.appearances) && (max_appearances_name = person.name);
+                });
+                (body.meta.aggregations.mostpopular[0].name).should.equal(max_appearances_name);
+                done();
+            });
+        });
+
+        it('should be possible to have linked documents returned by a level 1 top_hits aggregation', function (done) {
+            request(config.baseUrl).get('/people/search?limit=10000&aggregations=mostpopular&mostpopular.type=top_hits&mostpopular.sort=-appearances&mostpopular.limit=1000&mostpopular.include=pets&script=sampler&script.maxSamples=1').expect(200).end(function (err,
+                                                                                                                                                                                                                                 res) {
+                should.not.exist(err);
+                var body = JSON.parse(res.text);
+                should.exist(body.linked);
+                should.exist(body.linked.pets);
+                (body.linked.pets.length).should.equal(1);
+                (body.linked.pets[0].id).should.equal(ids.pets[0]);
+                done();
+            });
+        });
+
+        it('should be possible to have linked documents returned by a level N top_hits aggregation', function (done) {
+            request(config.baseUrl).get('/people/search?aggregations=n&n.property=name&n.aggregations=mostpopular&mostpopular.type=top_hits&mostpopular.sort=-appearances&mostpopular.limit=1&mostpopular.include=pets&script=sampler&script.maxSamples=1').expect(200).end(function (err,
+                                                                                                                                                                                                                                                   res) {
+                should.not.exist(err);
+                var body = JSON.parse(res.text);
+                body.people.length.should.equal(1);
+                should.exist(body.linked.pets);
+                (body.linked.pets.length).should.equal(1);
+                (body.linked.pets[0].id).should.equal(ids.pets[0]);
+                done();
+            });
+        });
+
+        it('should dedupe linked documents returned by both a level N top_hits aggregation & the harvest-provided include', function (done) {
+            request(config.baseUrl).get('/people/search?aggregations=n&n.property=name&n.aggregations=mostpopular&mostpopular.type=top_hits&mostpopular.sort=-appearances&mostpopular.limit=1&mostpopular.include=pets&include=pets&script=sampler&script.maxSamples=1').expect(200).end(function (err,
+                                                                                                                                                                                                                                                                res) {
+                should.not.exist(err);
+                var body = JSON.parse(res.text);
+                body.people.length.should.equal(1);
+                should.exist(body.linked.pets);
+                (body.linked.pets.length).should.equal(1);
+                done();
+            });
+        });
+
+        //Skipping for now; this test requires an es_mapping to be provided.
+        it.skip('should be possible to have linked documents returned in a nested, then un-nested N level top_hits aggregation', function (done) {
+            request(config.baseUrl).get('/people/search?aggregations=n&n.property=links.pet.name&n.aggregations=mostpopular&mostpopular.type=top_hits&mostpopular.sort=-appearances&mostpopular.limit=1&mostpopular.include=pets&script=sampler&script.maxSamples=1').expect(200).end(function (err,
+                                                                                                                                                                                                                                                             res) {
+                should.not.exist(err);
+                var body = JSON.parse(res.text);
+                body.people.length.should.equal(1);
+                should.exist(body.linked.pets);
+                console.log(body)
+                (body.linked.pets.length).should.equal(1);
+                (body.linked.pets[0].id).should.equal(ids.pets[0]);
+                done();
+            });
+        });
+
+        it('should be able to remove linked documents', function (done) {
+            request(config.baseUrl).patch('/people/' + ids.people[0]).send([
+                    {path: '/people/0/links/pets', op: 'replace', value: []}
+                ]).expect('Content-Type', /json/).expect(200).end(function (error, response) {
+                    should.not.exist(error);
+                    var body = JSON.parse(response.text);
+                    should.not.exist(body.people[0].links);
+                    done();
+                });
+        });
+    });
+
+
+    describe.skip('Sampling', function() {
         beforeEach(function() {
             this.timeout(config.esIndexWaitTime + 10000);
             return seeder(this.harvesterApp).dropCollections('people')
             .then(function() {
-                console.log('dropped')
                 var people = _.times(10, function(index) {
                     return {
                         name : 'name' + index,
@@ -232,33 +335,5 @@ describe('aggregations', function () {
                 done();
             });
         });
-
-        it.only('should return 1 results of 10 when max sampled is 15 and query for 1 result', function (done) {
-            this.timeout(config.esIndexWaitTime + 10000);
-            request(config.baseUrl).get('/people/search?name=name1&script=sampler&script.maxSamples=15').expect(200).end(function (err, res) {
-                should.not.exist(err);
-                var body = JSON.parse(res.text);
-                body.people.length.should.equal(1);
-                done();
-            });
-        });
-
-        it('should return 1 results of 10 when max sampled is 15 and query for 1 result', function (done) {
-            this.timeout(config.esIndexWaitTime + 10000);
-            request(config.baseUrl).get('/people/search?script=sampler&script.maxSamples=15&aggregations=mostpopular&mostpopular.type=top_hits&mostpopular.sort=-appearances&mostpopular.limit=1').expect(200).end(function (err, res) {
-                should.not.exist(err);
-                var body = JSON.parse(res.text);
-                should.exist(body.meta.aggregations.name_agg);
-                (body.meta.aggregations.name_agg.length).should.equal(5);
-                should.exist(body.meta.aggregations.mostpopular);
-                (body.meta.aggregations.mostpopular.length).should.equal(1);
-                var max_appearances = 0;
-                _.each(fixtures().people, function (person) {
-                    person.appearances > max_appearances && (max_appearances = person.appearances);
-                });
-                (body.meta.aggregations.mostpopular[0].appearances).should.equal(max_appearances);
-                done();
-            });
-        });
-    })
+    });
 });
