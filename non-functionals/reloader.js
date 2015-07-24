@@ -5,9 +5,28 @@ var $http = require('http-as-promised');
 var runningAsScript = !module.parent;
 
 var MAX_ENTITIES_TO_PROCESS = 120000;
+var PAGE_SIZE = 10000;
 var http = require('http');
 var postPool = new http.Agent();
 postPool.maxSockets = 5;
+
+var promiseWhile = function(condition, action) {
+    var resolver = Promise.defer();
+
+    var loop = function() {
+        if (!condition()) return resolver.resolve();
+        return action()
+            .then(loop)
+            .catch(function(err) {
+                console.warn(err);
+                throw err;
+            });
+    };
+
+    process.nextTick(loop);
+
+    return resolver.promise;
+};
 
 
 /*
@@ -41,9 +60,36 @@ Reloader.prototype.reload = function(){
         });
 };
 
-Reloader.prototype.massGet =  function(limit){
+// Reloads in batches so that we can work with very large data sets.
+Reloader.prototype.pagedReload = function(){
+    var lastPageSize,
+        offset = 0,
+        reloaderThis = this;
+
+    return promiseWhile(countIsNotZero, getBatch);
+
+    function countIsNotZero() {
+        return lastPageSize !== 0;
+    }
+
+    function getBatch() {
+        return reloaderThis.massGet(PAGE_SIZE, offset)
+            .then(function(body) {
+                var entities = body[reloaderThis.type];
+
+                lastPageSize = entities.length;
+                offset += PAGE_SIZE;
+                console.log('OFFSET', offset);
+                logEntities(body, reloaderThis.type);
+                return reloaderThis.massUpdate(body);
+            });
+    }
+};
+
+Reloader.prototype.massGet =  function(limit, offset){
     console.log('Getting entities');
-    return $http.get(this.uri+"?limit="+limit,{json:{},pool:postPool})
+    return $http.get(this.uri+"?limit="+limit+"&offset="+offset,
+        {json:{},pool:postPool})
         .spread(function(res,body){
             return body;
         })
@@ -87,7 +133,7 @@ Reloader.prototype.massUpdate = function(entities){
 
 if(runningAsScript){
     var reloader = new Reloader(process.argv[2],process.argv[3]);
-    reloader.reload();
+    reloader.pagedReload();
 }else{
     module.exports=Reloader;
 }

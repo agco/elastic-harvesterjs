@@ -1,13 +1,14 @@
 var request = require('request');
-var bluebird = require('bluebird');
-var requestAsync = bluebird.promisify(require('request'));
-
+var Promise = require('bluebird');
+var requestAsync = Promise.promisify(require('request'));
+var $http = require('http-as-promised');
 var _s = require('underscore.string');
 var inflect= require('i')();
 var _ = require('lodash');
 var RSVP = require('rsvp');
 var Util =  require("./Util");
 var autoUpdateInputGenerator  = new (require("./autoUpdateInputGenerator"))();
+var AggSampler = require('./lib/scripts/sampler');
 
 //Bonsai wants us to only send 1 ES query at a time, for POSTs/PUTs. Later on we can add more pools for other requests if needed.
 var http = require('http');
@@ -45,7 +46,7 @@ function ElasticHarvest(harvest_app,es_url,index,type,options) {
         var sortParams = req.query["sort"];
         sortParams && (sortParams = sortParams.split(','));
 
-        var reservedQueryTerms = ["aggregations","aggregations.fields","include","limit","offset","sort","fields"];
+        var reservedQueryTerms = ["aggregations","aggregations.fields", "include","limit","offset","sort","fields", "script", "script.maxSamples"];
         reservedQueryTerms = reservedQueryTerms.concat(getAggregationFields(req.query));
         var reservedQueryTermLookup = Util.toObjectLookup(reservedQueryTerms);
 
@@ -80,8 +81,6 @@ function ElasticHarvest(harvest_app,es_url,index,type,options) {
             });
         }
         var aggregationObjects = getAggregationObjects(req.query);
-
-
 
         var esQuery = _this.getEsQueryBody(predicates, nestedPredicates, geoPredicate,aggregationObjects, sortParams);
         esSearch(esQuery,aggregationObjects,req,res,next);
@@ -157,6 +156,7 @@ function ElasticHarvest(harvest_app,es_url,index,type,options) {
             setValueIfExists(aggregation,"name",agg,assertIsNotArray);
             setValueIfExists(aggregation,"property",query[agg+".property"],assertIsNotArray);
             setValueIfExists(aggregation,"type",query[agg+".type"] || "terms",assertIsNotArray);
+            setValueIfExists(aggregation,"maxSamples",query[agg+".maxSamples"],assertIsNotArray);
             setValueIfExists(aggregation,"order",query[agg+".order"],assertIsNotArray);
             setValueIfExists(aggregation,"sort",query[agg+".sort"],assertIsNotArray);
             setValueIfExists(aggregation,"limit",query[agg+".limit"],assertIsNotArray);
@@ -377,25 +377,21 @@ function ElasticHarvest(harvest_app,es_url,index,type,options) {
                     .status(400)
                     .send(JSON.stringify(esResponse,undefined, padding));
             });
-        });
+        }).catch(function (error) {
+                console.error(error && error.stack || error);
+                res.status(500).end();
+            });
     }
 
     function esSearch(esQuery,aggregationObjects,req,res) {
-        var params=[];
-        var query=req.query;
-        query['include'] && params.push("include="+ query['include']);
-        query['limit'] && params.push("size="+ query['limit']);
-        query['offset'] && params.push("from="+ query['offset']);
-
-        var queryStr = '?'+params.join('&');
-
-        var es_resource = es_url + '/'+index+'/'+type+'/_search'+queryStr;
-        request(es_resource, {method: 'GET', body: esQuery}, function (error, response, body) {
+        var query = req.query;
+        
+        AggSampler.checkAndSample(es_url, index, type, esQuery, aggregationObjects, query)
+        .spread(function (response) {;
             var es_results;
-            body && (es_results = JSON.parse(body));
-            if (error || es_results.error) {
-                es_results.error && (error=es_results.error);
-                console.warn(error);
+            response && response.body && (es_results = JSON.parse(response.body));
+            if (es_results.error) {
+                es_results.error && (error = es_results.error);
                 throw new Error("Your query was malformed, so it failed. Please check the api to make sure you're using it correctly.");
             } else {
                 var includes = req.query["include"],
@@ -406,6 +402,10 @@ function ElasticHarvest(harvest_app,es_url,index,type,options) {
                 fields && fields.push("id");
                 return sendSearchResponse(es_results, res,includes,fields,aggregationObjects);
             }
+        })
+        .catch(function(err, res) {
+            console.log('[Elastic-Harvest] Error', err.stack);
+            throw new Error("Your query was malformed, so it failed. Please check the api to make sure you're using it correctly.");
         });
     }
 
@@ -485,7 +485,6 @@ function getResponseArrayFromESResults(results,fields){
 ElasticHarvest.prototype.getEsQueryBody = function (predicates, nestedPredicates, geoPredicate,aggregationObjects,sortParams) {
 
     var createEsQueryFragment = function (fields, queryVal) {
-
         return {
             "query": {
                 "query_string": {
@@ -933,7 +932,7 @@ ElasticHarvest.prototype.enableAutoIndexUpdate = function(){
 
 ElasticHarvest.prototype.enableAutoIndexUpdateOnModelUpdate = function (endpoint,idField) {
     var _this = this;
-    if(this.harvest_app._oplogEnabled) {
+    if(!!this.harvest_app.options.oplogConnectionString) {
         console.warn("[Elastic-Harvest] Will sync "+endpoint+" data via oplog");
         this.harvest_app.onChange(endpoint,{insert:resourceChanged,update:resourceChanged,delete: resourceChanged});
 
@@ -996,7 +995,7 @@ ElasticHarvest.prototype.simpleSearch = function (field,value) {
     return requestAsync({uri:es_resource, method: 'GET', body: reqBody}).then(function(response) {
         var es_results = JSON.parse(response[1]);
         if (es_results.error) {
-            console.warn(es_results.error);
+            console.log('[Elastic-Harvest] Error', es_results.error);
             throw new Error("Your query was malformed, so it failed. Please check the api to make sure you're using it correctly.");
         } else {
             return es_results;
@@ -1026,7 +1025,7 @@ ElasticHarvest.prototype.delete = function(id){
 ElasticHarvest.prototype.enableAutoSync= function(){
     var endpoint = inflect.singularize(this.type);
     var _this = this;
-    if(this.harvest_app._oplogEnabled){
+    if(!!this.harvest_app.options.oplogConnectionString){
         console.warn("[Elastic-Harvest] Will sync primary resource data via oplog");
         this.harvest_app.onChange(endpoint,{insert:resourceChanged,update:resourceChanged,delete: resourceDeleted});
         function resourceDeleted(resourceId){
@@ -1099,7 +1098,7 @@ ElasticHarvest.prototype.sync = function(model){
     var options = {uri: this.es_url + '/'+this.index+'/'+this.type+'/' + model.id, body: esBody,pool:postPool};
 
     return new RSVP.Promise(function (resolve, reject) {
-        request.put(options, function (error, response, body) {
+            request.put(options, function (error, response, body) {
             body = JSON.parse(body);
             if (error || body.error) {
                 var errMsg = error?error.message?error.message:JSON.stringify(error):JSON.stringify(body.error);
