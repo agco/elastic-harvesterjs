@@ -377,7 +377,10 @@ function ElasticHarvest(harvest_app,es_url,index,type,options) {
                     .status(400)
                     .send(JSON.stringify(esResponse,undefined, padding));
             });
-        });
+        }).catch(function (error) {
+                console.error(error && error.stack || error);
+                res.status(500).end();
+            });
     }
 
     function esSearch(esQuery,aggregationObjects,req,res) {
@@ -929,7 +932,7 @@ ElasticHarvest.prototype.enableAutoIndexUpdate = function(){
 
 ElasticHarvest.prototype.enableAutoIndexUpdateOnModelUpdate = function (endpoint,idField) {
     var _this = this;
-    if(this.harvest_app._oplogEnabled) {
+    if(!!this.harvest_app.options.oplogConnectionString) {
         console.warn("[Elastic-Harvest] Will sync "+endpoint+" data via oplog");
         this.harvest_app.onChange(endpoint,{insert:resourceChanged,update:resourceChanged,delete: resourceChanged});
 
@@ -1022,7 +1025,7 @@ ElasticHarvest.prototype.delete = function(id){
 ElasticHarvest.prototype.enableAutoSync= function(){
     var endpoint = inflect.singularize(this.type);
     var _this = this;
-    if(this.harvest_app._oplogEnabled){
+    if(!!this.harvest_app.options.oplogConnectionString){
         console.warn("[Elastic-Harvest] Will sync primary resource data via oplog");
         this.harvest_app.onChange(endpoint,{insert:resourceChanged,update:resourceChanged,delete: resourceDeleted});
         function resourceDeleted(resourceId){

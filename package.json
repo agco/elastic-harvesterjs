@@ -18,6 +18,7 @@
     "bluebird": "~2.3.2",
     "http-as-promised": "~0.1.0",
     "i": "~0.3.2",
+    "joi": "^6.4.3",
     "lodash": "~2.4.1",
     "mongoose": "3.8.12",
     "request": "2.40.0",
@@ -27,7 +28,7 @@
   },
   "devDependencies": {
     "coveralls": "^2.11.2",
-    "harvester": "git+https://github.com/agco/harvesterjs.git#feature/GLBLAGCTWO-308",
+    "harvester": "git+https://github.com/agco/harvesterjs.git#2.0.1",
     "istanbul": "^0.3.15",
     "mocha": "~1.20.1",
     "mocha-lcov-reporter": "0.0.2",

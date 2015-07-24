@@ -1,6 +1,7 @@
 var harvester = require('harvesterjs');
 var ElasticHarvest = require('../elastic-harvester');
 var Promise = require('bluebird');
+var Joi = require('joi');
 
 var config = require('./config.js');
 
@@ -14,24 +15,28 @@ function configureApp(harvesterApp) {
     var options = harvesterApp.options;
 
     harvesterApp.resource('person', {
-        name: String,
-        appearances: Number,
-        pets: ['pet'],
-        soulmate: {ref: 'person', inverse: 'soulmate'},
-        lovers: [
-            {ref: 'person', inverse: 'lovers'}
-        ]
+        name: Joi.string(),
+        appearances: Joi.number(),
+        links: {
+            pets: ['pet'],
+            soulmate: {ref: 'person', inverse: 'soulmate'},
+            lovers: [
+                {ref: 'person', inverse: 'lovers'}
+            ]
+        }
     }).resource('pet', {
-            name: String,
-            appearances: Number,
-            toys: ['toy'],
-            friends: ['pet']
+            name: Joi.string(),
+            appearances: Joi.number(),
+            links:{
+                toys: ['toy'],
+                friends: ['pet']
+            }
         }).resource('toy', {
-            name: String
+            name: Joi.string()
         });
 
     peopleSearch = new ElasticHarvest(harvesterApp, options.es_url, options.es_index, "people");
-    peopleSearch.setHarvestRoute(harvesterApp.route('person'));
+    peopleSearch.setHarvestRoute(harvesterApp.createdResources['person']);
     peopleSearch.enableAutoSync("person");
     peopleSearch.enableAutoIndexUpdate();
 
