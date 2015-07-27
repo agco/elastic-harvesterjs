@@ -211,3 +211,36 @@ module.exports= {
     }
 }
 ```
+
+#### Configuring scripts
+
+There is a ```sampler``` script that you can run when wanting to get a subset of the results you normally get. To run this scripts will have to be enabled in Elastic Search config:
+
+```yml
+script.disable_dynamic: sandbox
+script.default_lang: expression
+script.groovy.sandbox.enabled: false
+```
+
+Then place this script as ```sampler.groovy``` file in scripts directory of ES instance.
+
+```groovy
+count=count+1;if(count % skip_rate == 0){ return 1 }; return 0;
+```
+
+#### Running Sampler script
+
+Sampler script can be executed in conjunction with any other ES query and aggregations. Just add the following to your query:
+
+```
+script=sampler&script.maxSamples=15
+```
+
+```maxSamples``` being the number of results you want to get. Script will get a sample from the normal result set. For same query results you will get the same sample data.
+
+An example:
+
+```
+/people/search?aggregations=n&n.property=links.pet.name&n.aggregations=mostpopular&mostpopular.type=top_hits&mostpopular.sort=-appearances&mostpopular.limit=1&mostpopular.include=pets&script=sampler&script.maxSamples=100
+```
+
