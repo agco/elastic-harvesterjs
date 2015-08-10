@@ -8,7 +8,7 @@ var _ = require('lodash');
 var RSVP = require('rsvp');
 var Util =  require("./Util");
 var autoUpdateInputGenerator  = new (require("./autoUpdateInputGenerator"))();
-var AggSampler = require('./lib/scripts/sampler');
+var SampleScript = require('./lib/scripts/sampler');
 
 //Bonsai wants us to only send 1 ES query at a time, for POSTs/PUTs. Later on we can add more pools for other requests if needed.
 var http = require('http');
@@ -385,9 +385,23 @@ function ElasticHarvest(harvest_app,es_url,index,type,options) {
 
     function esSearch(esQuery,aggregationObjects,req,res) {
         var query = req.query;
+
+        var params=[];
+    
+        query['include'] && params.push("include="+ query['include']);
+        query['limit'] && params.push("size="+ query['limit']);
+        query['offset'] && params.push("from="+ query['offset']);
+
+        var queryStr = '?'+params.join('&');
+        var es_resource = es_url + '/' + index + '/' + type + '/_search' + queryStr;
+
+        var searchPromise = $http({url : es_resource, method: 'GET', body: esQuery});
+
+        if (query.script === 'sampler') {
+            searchPromise = SampleScript.sample(index, type, esQuery, aggregationObjects, query, es_resource);
+        }
         
-        AggSampler.checkAndSample(es_url, index, type, esQuery, aggregationObjects, query)
-        .spread(function (response) {;
+        searchPromise.spread(function (response) {;
             var es_results;
             response && response.body && (es_results = JSON.parse(response.body));
             if (es_results.error) {
