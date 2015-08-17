@@ -3,7 +3,7 @@ var request = require('supertest');
 var Promise = require('bluebird');
 var seeder = require('./seeder.js');
 
-describe('sorting', function () {
+describe.only('sorting', function () {
     function addLink(parentEndpoint,parentFixtureIndex,childEndpoint,childFixtureIndex){
         var payload = {};
 
@@ -96,7 +96,17 @@ describe('sorting', function () {
                 done();
             });
         });
+
+        it('should be possible to combine sorting on nested and un-nested fields', function (done) {
+            request(config.baseUrl).get('/people/search?sort=appearances,links.pets.name').expect(200).end(function (err, res) {
+                should.not.exist(err);
+                var body = JSON.parse(res.text);
+                (body.people[0].name).should.equal("Wally");
+                done();
+            });
+        });
     });
+
     describe('regular sorting', function () {
         it('should be possible to sort ascending on numeric fields', function (done) {
             request(config.baseUrl).get('/people/search?sort=appearances').expect(200).end(function (err, res) {
@@ -106,27 +116,39 @@ describe('sorting', function () {
                 done();
             });
         });
-        it('should be possible to sort ascending on names', function (done) {
-            request(config.baseUrl).get('/people/search?sort=name').expect(200).end(function (err, res) {
-                should.not.exist(err);
-                var body = JSON.parse(res.text);
-                (body.people[0].name).should.equal("Dilbert");
-                done();
-            });
-        });
-        it('should be possible to sort descending on numeric fields', function (done) {
-            request(config.baseUrl).get('/people/search?sort=-name').expect(200).end(function (err, res) {
+
+        it('should be possible to combine sorting on numeric and text fields', function (done) {
+            request(config.baseUrl).get('/people/search?sort=appearances,name').expect(200).end(function (err, res) {
                 should.not.exist(err);
                 var body = JSON.parse(res.text);
                 (body.people[0].name).should.equal("Wally");
                 done();
             });
         });
-        it('should be possible to sort ascending on names', function (done) {
+
+        it('should be possible to sort descending on numeric fields', function (done) {
+            request(config.baseUrl).get('/people/search?sort=-appearances').expect(200).end(function (err, res) {
+                should.not.exist(err);
+                var body = JSON.parse(res.text);
+                (body.people[0].name).should.equal("Dilbert");
+                done();
+            });
+        });
+
+        it('should be possible to sort ascending on text fields', function (done) {
             request(config.baseUrl).get('/people/search?sort=name').expect(200).end(function (err, res) {
                 should.not.exist(err);
                 var body = JSON.parse(res.text);
                 (body.people[0].name).should.equal("Dilbert");
+                done();
+            });
+        });
+
+        it('should be possible to sort descending on text fields', function (done) {
+            request(config.baseUrl).get('/people/search?sort=-name').expect(200).end(function (err, res) {
+                should.not.exist(err);
+                var body = JSON.parse(res.text);
+                (body.people[0].name).should.equal("Wally");
                 done();
             });
         });
