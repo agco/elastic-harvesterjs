@@ -1,6 +1,10 @@
 module.exports={
     "people": {
         "properties": {
+            "id": {
+                "type": "string",
+                "index": "not_analyzed"
+            },
             "name": {
                 "type": "string",
                 "index": "not_analyzed"
@@ -14,6 +18,10 @@ module.exports={
                     "pets": {
                         "type": "nested",
                         "properties": {
+                            "id": {
+                                "type": "string",
+                                "index": "not_analyzed"
+                            },
                             "name": {
                                 "type": "string",
                                 "index": "not_analyzed"
@@ -24,6 +32,10 @@ module.exports={
                             "toys": {
                                 "type": "nested",
                                 "properties": {
+                                    "id": {
+                                        "type": "string",
+                                        "index": "not_analyzed"
+                                    },
                                     "name": {
                                         "type": "string",
                                         "index": "not_analyzed"
@@ -33,6 +45,10 @@ module.exports={
                             "friends": {
                                 "type": "nested",
                                 "properties": {
+                                    "id": {
+                                        "type": "string",
+                                        "index": "not_analyzed"
+                                    },
                                     "name": {
                                         "type": "string",
                                         "index": "not_analyzed"
@@ -43,6 +59,10 @@ module.exports={
                                     "toys": {
                                         "type": "nested",
                                         "properties": {
+                                            "id": {
+                                                "type": "string",
+                                                "index": "not_analyzed"
+                                            },
                                             "name": {
                                                 "type": "string",
                                                 "index": "not_analyzed"
@@ -52,6 +72,10 @@ module.exports={
                                     "friends": {
                                         "type": "nested",
                                         "properties": {
+                                            "id": {
+                                                "type": "string",
+                                                "index": "not_analyzed"
+                                            },
                                             "name": {
                                                 "type": "string",
                                                 "index": "not_analyzed"
@@ -68,6 +92,10 @@ module.exports={
                     "soulmate": {
                         "type": "nested",
                         "properties": {
+                            "id": {
+                                "type": "string",
+                                "index": "not_analyzed"
+                            },
                             "name": {
                                 "type": "string",
                                 "index": "not_analyzed"
@@ -78,6 +106,10 @@ module.exports={
                             "pets": {
                                 "type": "nested",
                                 "properties": {
+                                    "id": {
+                                        "type": "string",
+                                        "index": "not_analyzed"
+                                    },
                                     "name": {
                                         "type": "string",
                                         "index": "not_analyzed"
@@ -88,6 +120,10 @@ module.exports={
                                     "toys": {
                                         "type": "nested",
                                         "properties": {
+                                            "id": {
+                                                "type": "string",
+                                                "index": "not_analyzed"
+                                            },
                                             "name": {
                                                 "type": "string",
                                                 "index": "not_analyzed"
@@ -97,6 +133,10 @@ module.exports={
                                     "friends": {
                                         "type": "nested",
                                         "properties": {
+                                            "id": {
+                                                "type": "string",
+                                                "index": "not_analyzed"
+                                            },
                                             "name": {
                                                 "type": "string",
                                                 "index": "not_analyzed"
@@ -111,6 +151,10 @@ module.exports={
                             "soulmate": {
                                 "type": "nested",
                                 "properties": {
+                                    "id": {
+                                        "type": "string",
+                                        "index": "not_analyzed"
+                                    },
                                     "name": {
                                         "type": "string",
                                         "index": "not_analyzed"
@@ -121,6 +165,10 @@ module.exports={
                                     "pets": {
                                         "type": "nested",
                                         "properties": {
+                                            "id": {
+                                                "type": "string",
+                                                "index": "not_analyzed"
+                                            },
                                             "name": {
                                                 "type": "string",
                                                 "index": "not_analyzed"
@@ -133,6 +181,10 @@ module.exports={
                                     "soulmate": {
                                         "type": "nested",
                                         "properties": {
+                                            "id": {
+                                                "type": "string",
+                                                "index": "not_analyzed"
+                                            },
                                             "name": {
                                                 "type": "string",
                                                 "index": "not_analyzed"
@@ -145,6 +197,10 @@ module.exports={
                                     "lovers": {
                                         "type": "nested",
                                         "properties": {
+                                            "id": {
+                                                "type": "string",
+                                                "index": "not_analyzed"
+                                            },
                                             "name": {
                                                 "type": "string",
                                                 "index": "not_analyzed"
@@ -159,6 +215,10 @@ module.exports={
                             "lovers": {
                                 "type": "nested",
                                 "properties": {
+                                    "id": {
+                                        "type": "string",
+                                        "index": "not_analyzed"
+                                    },
                                     "name": {
                                         "type": "string",
                                         "index": "not_analyzed"
@@ -169,6 +229,10 @@ module.exports={
                                     "pets": {
                                         "type": "nested",
                                         "properties": {
+                                            "id": {
+                                                "type": "string",
+                                                "index": "not_analyzed"
+                                            },
                                             "name": {
                                                 "type": "string",
                                                 "index": "not_analyzed"
@@ -181,6 +245,10 @@ module.exports={
                                     "soulmate": {
                                         "type": "nested",
                                         "properties": {
+                                            "id": {
+                                                "type": "string",
+                                                "index": "not_analyzed"
+                                            },
                                             "name": {
                                                 "type": "string",
                                                 "index": "not_analyzed"
@@ -193,6 +261,10 @@ module.exports={
                                     "lovers": {
                                         "type": "nested",
                                         "properties": {
+                                            "id": {
+                                                "type": "string",
+                                                "index": "not_analyzed"
+                                            },
                                             "name": {
                                                 "type": "string",
                                                 "index": "not_analyzed"
@@ -209,7 +281,10 @@ module.exports={
                     "lovers": {
                         "type": "nested",
                         "properties": {
-
+                            "id": {
+                                "type": "string",
+                                "index": "not_analyzed"
+                            },
                             "name": {
                                 "type": "string",
                                 "index": "not_analyzed"
@@ -220,6 +295,10 @@ module.exports={
                             "pets": {
                                 "type": "nested",
                                 "properties": {
+                                    "id": {
+                                        "type": "string",
+                                        "index": "not_analyzed"
+                                    },
                                     "name": {
                                         "type": "string",
                                         "index": "not_analyzed"
@@ -230,6 +309,10 @@ module.exports={
                                     "toys": {
                                         "type": "nested",
                                         "properties": {
+                                            "id": {
+                                                "type": "string",
+                                                "index": "not_analyzed"
+                                            },
                                             "name": {
                                                 "type": "string",
                                                 "index": "not_analyzed"
@@ -239,6 +322,10 @@ module.exports={
                                     "friends": {
                                         "type": "nested",
                                         "properties": {
+                                            "id": {
+                                                "type": "string",
+                                                "index": "not_analyzed"
+                                            },
                                             "name": {
                                                 "type": "string",
                                                 "index": "not_analyzed"
@@ -253,6 +340,10 @@ module.exports={
                             "soulmate": {
                                 "type": "nested",
                                 "properties": {
+                                    "id": {
+                                        "type": "string",
+                                        "index": "not_analyzed"
+                                    },
                                     "name": {
                                         "type": "string",
                                         "index": "not_analyzed"
@@ -263,6 +354,10 @@ module.exports={
                                     "pets": {
                                         "type": "nested",
                                         "properties": {
+                                            "id": {
+                                                "type": "string",
+                                                "index": "not_analyzed"
+                                            },
                                             "name": {
                                                 "type": "string",
                                                 "index": "not_analyzed"
@@ -275,6 +370,10 @@ module.exports={
                                     "soulmate": {
                                         "type": "nested",
                                         "properties": {
+                                            "id": {
+                                                "type": "string",
+                                                "index": "not_analyzed"
+                                            },
                                             "name": {
                                                 "type": "string",
                                                 "index": "not_analyzed"
@@ -287,6 +386,10 @@ module.exports={
                                     "lovers": {
                                         "type": "nested",
                                         "properties": {
+                                            "id": {
+                                                "type": "string",
+                                                "index": "not_analyzed"
+                                            },
                                             "name": {
                                                 "type": "string",
                                                 "index": "not_analyzed"
@@ -301,6 +404,10 @@ module.exports={
                             "lovers": {
                                 "type": "nested",
                                 "properties": {
+                                    "id": {
+                                        "type": "string",
+                                        "index": "not_analyzed"
+                                    },
                                     "name": {
                                         "type": "string",
                                         "index": "not_analyzed"
@@ -311,6 +418,10 @@ module.exports={
                                     "pets": {
                                         "type": "nested",
                                         "properties": {
+                                            "id": {
+                                                "type": "string",
+                                                "index": "not_analyzed"
+                                            },
                                             "name": {
                                                 "type": "string",
                                                 "index": "not_analyzed"
@@ -323,6 +434,10 @@ module.exports={
                                     "soulmate": {
                                         "type": "nested",
                                         "properties": {
+                                            "id": {
+                                                "type": "string",
+                                                "index": "not_analyzed"
+                                            },
                                             "name": {
                                                 "type": "string",
                                                 "index": "not_analyzed"
@@ -335,6 +450,10 @@ module.exports={
                                     "lovers": {
                                         "type": "nested",
                                         "properties": {
+                                            "id": {
+                                                "type": "string",
+                                                "index": "not_analyzed"
+                                            },
                                             "name": {
                                                 "type": "string",
                                                 "index": "not_analyzed"

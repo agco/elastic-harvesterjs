@@ -1,13 +1,14 @@
-var ObjectId = require('mongoose').Types.ObjectId;
 var request = require('request');
-var bluebird = require('bluebird');
-var requestAsync = bluebird.promisify(require('request'));
-
+var Promise = require('bluebird');
+var requestAsync = Promise.promisify(require('request'));
+var $http = require('http-as-promised');
 var _s = require('underscore.string');
 var inflect= require('i')();
 var _ = require('lodash');
 var RSVP = require('rsvp');
 var Util =  require("./Util");
+var autoUpdateInputGenerator  = new (require("./autoUpdateInputGenerator"))();
+var SampleScript = require('./lib/scripts/sampler');
 
 //Bonsai wants us to only send 1 ES query at a time, for POSTs/PUTs. Later on we can add more pools for other requests if needed.
 var http = require('http');
@@ -18,14 +19,15 @@ var DEFAULT_AGGREGATION_LIMIT = 0;//0=>Integer.MAX_VALUE
 var DEFAULT_TOP_HITS_AGGREGATION_LIMIT = 10; //Cannot be zero. NOTE: Default number of responses in top_hit aggregation is 10.
 var DEFAULT_SIMPLE_SEARCH_LIMIT = 1000; //simple searches don't specify a limit, and are only used internally for autoupdating
 var defaultOptions = {
-   graphDepth:{
-       default:3
-   }
+    graphDepth: {
+       default: 3
+    }
 };
 function ElasticHarvest(harvest_app,es_url,index,type,options) {
     var _this= this;
     if(harvest_app){
         this.collectionLookup=getCollectionLookup(harvest_app,type);
+        this.autoUpdateInput=autoUpdateInputGenerator.make(harvest_app,type);
         this.adapter = harvest_app.adapter;
         this.harvest_app = harvest_app;
     }else{
@@ -44,7 +46,7 @@ function ElasticHarvest(harvest_app,es_url,index,type,options) {
         var sortParams = req.query["sort"];
         sortParams && (sortParams = sortParams.split(','));
 
-        var reservedQueryTerms = ["aggregations","aggregations.fields","include","limit","offset","sort","fields"];
+        var reservedQueryTerms = ["aggregations","aggregations.fields", "include","limit","offset","sort","fields", "script", "script.maxSamples"];
         reservedQueryTerms = reservedQueryTerms.concat(getAggregationFields(req.query));
         var reservedQueryTermLookup = Util.toObjectLookup(reservedQueryTerms);
 
@@ -79,8 +81,6 @@ function ElasticHarvest(harvest_app,es_url,index,type,options) {
             });
         }
         var aggregationObjects = getAggregationObjects(req.query);
-
-
 
         var esQuery = _this.getEsQueryBody(predicates, nestedPredicates, geoPredicate,aggregationObjects, sortParams);
         esSearch(esQuery,aggregationObjects,req,res,next);
@@ -156,6 +156,7 @@ function ElasticHarvest(harvest_app,es_url,index,type,options) {
             setValueIfExists(aggregation,"name",agg,assertIsNotArray);
             setValueIfExists(aggregation,"property",query[agg+".property"],assertIsNotArray);
             setValueIfExists(aggregation,"type",query[agg+".type"] || "terms",assertIsNotArray);
+            setValueIfExists(aggregation,"maxSamples",query[agg+".maxSamples"],assertIsNotArray);
             setValueIfExists(aggregation,"order",query[agg+".order"],assertIsNotArray);
             setValueIfExists(aggregation,"sort",query[agg+".sort"],assertIsNotArray);
             setValueIfExists(aggregation,"limit",query[agg+".limit"],assertIsNotArray);
@@ -376,25 +377,35 @@ function ElasticHarvest(harvest_app,es_url,index,type,options) {
                     .status(400)
                     .send(JSON.stringify(esResponse,undefined, padding));
             });
-        });
+        }).catch(function (error) {
+                console.error(error && error.stack || error);
+                res.status(500).end();
+            });
     }
 
     function esSearch(esQuery,aggregationObjects,req,res) {
+        var query = req.query;
+
         var params=[];
-        var query=req.query;
+    
         query['include'] && params.push("include="+ query['include']);
         query['limit'] && params.push("size="+ query['limit']);
         query['offset'] && params.push("from="+ query['offset']);
 
         var queryStr = '?'+params.join('&');
+        var es_resource = es_url + '/' + index + '/' + type + '/_search' + queryStr;
 
-        var es_resource = es_url + '/'+index+'/'+type+'/_search'+queryStr;
-        request(es_resource, {method: 'GET', body: esQuery}, function (error, response, body) {
+        var searchPromise = $http({url : es_resource, method: 'GET', body: esQuery});
+
+        if (query.script === 'sampler') {
+            searchPromise = SampleScript.sample(index, type, esQuery, aggregationObjects, query, es_resource);
+        }
+        
+        searchPromise.spread(function (response) {;
             var es_results;
-            body && (es_results = JSON.parse(body));
-            if (error || es_results.error) {
-                es_results.error && (error=es_results.error);
-                console.warn(error);
+            response && response.body && (es_results = JSON.parse(response.body));
+            if (es_results.error) {
+                es_results.error && (error = es_results.error);
                 throw new Error("Your query was malformed, so it failed. Please check the api to make sure you're using it correctly.");
             } else {
                 var includes = req.query["include"],
@@ -405,6 +416,10 @@ function ElasticHarvest(harvest_app,es_url,index,type,options) {
                 fields && fields.push("id");
                 return sendSearchResponse(es_results, res,includes,fields,aggregationObjects);
             }
+        })
+        .catch(function(err, res) {
+            console.log('[Elastic-Harvest] Error', err.stack);
+            throw new Error("Your query was malformed, so it failed. Please check the api to make sure you're using it correctly.");
         });
     }
 
@@ -439,11 +454,11 @@ function unexpandEntity(sourceObject,includeFields){
     _.each(sourceObject.links || [],function(val,key){
         if(!_.isArray(sourceObject.links[key])){
             //I know the extra .toString seems unnecessary, but sometimes val.id is already an objectId, and other times its a string.
-            sourceObject.links[key] = ObjectId(val.id.toString());
+            sourceObject.links[key] = val.id.toString();
 
         }else{
             _.each(sourceObject.links[key],function(innerVal,innerKey){
-                sourceObject.links[key][innerKey] = ObjectId(innerVal.id.toString());
+                sourceObject.links[key][innerKey] = innerVal.id.toString();
             })
         }
     })
@@ -484,7 +499,6 @@ function getResponseArrayFromESResults(results,fields){
 ElasticHarvest.prototype.getEsQueryBody = function (predicates, nestedPredicates, geoPredicate,aggregationObjects,sortParams) {
 
     var createEsQueryFragment = function (fields, queryVal) {
-
         return {
             "query": {
                 "query_string": {
@@ -533,8 +547,23 @@ ElasticHarvest.prototype.getEsQueryBody = function (predicates, nestedPredicates
             }
 
             var val = value.replace(/,/g," ");
-            fragment = {"query": {"match": {}}};
-            fragment["query"]["match"][field] = {query:val,lenient:true};
+
+            if (value.indexOf(',') > -1) {
+                chunks = value.split(',');
+                val = {
+                    should : chunks.map(function(chunk) {
+                        var match = {};
+                        match[field] = chunk;
+                        return {match : match};
+                    })
+                };
+
+                fragment = {"query": {"bool": {}}};
+                fragment["query"]["bool"] = val;
+            } else {
+                fragment = {"query": {"match": {}}};
+                fragment["query"]["match"][field] = {query:val,lenient:true};
+            }
         }
         return fragment;
     };
@@ -883,7 +912,8 @@ ElasticHarvest.prototype.getEsQueryBody = function (predicates, nestedPredicates
             sortDirection=="desc" && (sortParam = sortParam.substr(1));
 
             if (Util.hasDotNesting(sortParam)){
-                //nested sort - not sure if this needs to be implemented.
+                //nested sort
+                sortTerm[sortParam]={order:sortDirection,"ignore_unmapped":true};
             }else if (sortParam=="distance"){
                 if(geoPredicateExists) {
                     sortTerm["_geo_distance"] =
@@ -907,28 +937,40 @@ ElasticHarvest.prototype.getEsQueryBody = function (predicates, nestedPredicates
     return  composedEsQuerystr;
 };
 
-//Todo: note if POSTS become much slower in production. If they do, drop POSTS from here - they're not really important.
-//Todo: Note that this does not cover deletes.
+
+ElasticHarvest.prototype.enableAutoIndexUpdate = function(){
+    var _this = this;
+    _.each(this.autoUpdateInput,function(autoUpdateValue,autoUpdateKey){
+        _this.enableAutoIndexUpdateOnModelUpdate(autoUpdateValue,autoUpdateKey);
+    })
+};
+
 ElasticHarvest.prototype.enableAutoIndexUpdateOnModelUpdate = function (endpoint,idField) {
     var _this = this;
-    this.harvest_app.after(endpoint, function (req, res, next) {
-        var entity = this;
-        if (( req.method === 'POST' || req.method === 'PUT') && entity.id) {
-            return _this.updateIndexForLinkedDocument(idField,entity);
-        } else {
-            return this;
-        }
-    });
-//                 //Todo: finish support for deletes.
-//    this.harvest_app.before(endpoint, function (req, res, next) {
-//        var entity = this;
-//        if ((req.method === 'DELETE') && entity.id) {
-//            return _this.updateIndexForLinkedDocument(idField,entity,req.method);
-//        } else {
-//            return this;
-//        }
-//    });
+    if(!!this.harvest_app.options.oplogConnectionString) {
+        console.warn("[Elastic-Harvest] Will sync "+endpoint+" data via oplog");
+        this.harvest_app.onChange(endpoint,{insert:resourceChanged,update:resourceChanged,delete: resourceChanged});
 
+        function resourceChanged (resourceId) {
+            console.log("[Elastic-Harvest] Syncing Change @" + idField + ' : ' + resourceId);
+
+            return _this.updateIndexForLinkedDocument(idField, {id:resourceId.toString()})
+                .catch(function (error) {
+                    //This sort of error will not be solved by retrying it a bunch of times.
+                    console.warn(error);
+                })
+        }
+    }else{
+        console.warn("[Elastic-Harvest] Will sync  "+endpoint+" data via harvest.after");
+        this.harvest_app.after(endpoint, function (req, res, next) {
+            var entity = this;
+            if ((_.contains(['POST','PUT'], req.method)) && entity.id) {
+                return _this.updateIndexForLinkedDocument(idField, entity);
+            } else {
+                return entity;
+            }
+        });
+    }
 };
 
 ///Searches elastic search at idField for entity.id & triggers a reindex. If method is DELETE, it'll
@@ -939,28 +981,6 @@ ElasticHarvest.prototype.updateIndexForLinkedDocument = function (idField,entity
     return _this.simpleSearch(idField,entity.id)
         .then(function(result){
             return _this.expandAndSync(_.map(result.hits.hits,function(hit){
-                //Todo: finish support for deletes.
-//                if(method && method=="DELETE"){
-//                    var objPath = idField.substr(0, idField.lastIndexOf(".id"));
-//                    var objName = objPath.substr(objPath.lastIndexOf(".")+1,objPath.length);
-//                    var closestParentObjPath = idField.substr(0, idField.lastIndexOf("."+objName));
-//                    var closestParentObj = Util.getProperty(hit._source,closestParentObjPath);
-//
-//                    if(_.isArray(closestParentObj)){
-//                        var closestParentObjName = closestParentObjPath.substr(closestParentObjPath.lastIndexOf(".")+1,closestParentObjPath.length);
-//                        var closestParentObjParentPath = closestParentObjPath.substr(0, closestParentObjPath.lastIndexOf("."+closestParentObjName));
-//                        var closestParentObjectParent = Util.getProperty(hit._source,closestParentObjParentPath);
-//
-//                        closestParentObjectParent[closestParentObjName]=_.reject(closestParentObj,function(object){
-//                            return object.id==entity.id;
-//                            //issue: the array can be of other objects, and the affected object may be
-//                            //really deep. We need an expanded query syntax that can query into arrays to sole
-                              //this issue.
-//                        })
-//                    }else{
-//                        delete closestParentObj[objName];
-//                    }
-//                }
                 return unexpandEntity(hit._source);
             })).then(function(result){
                 return entity;
@@ -990,7 +1010,7 @@ ElasticHarvest.prototype.simpleSearch = function (field,value) {
     return requestAsync({uri:es_resource, method: 'GET', body: reqBody}).then(function(response) {
         var es_results = JSON.parse(response[1]);
         if (es_results.error) {
-            console.warn(es_results.error);
+            console.log('[Elastic-Harvest] Error', es_results.error);
             throw new Error("Your query was malformed, so it failed. Please check the api to make sure you're using it correctly.");
         } else {
             return es_results;
@@ -1004,6 +1024,7 @@ ElasticHarvest.prototype.simpleSearch = function (field,value) {
 ElasticHarvest.prototype.delete = function(id){
     var _this = this;
     var es_resource = this.es_url + '/'+this.index+'/'+this.type+'/'+id;
+    console.log('[Elastic-Harvest] Deleting '+_this.type+'/'+id);
     return requestAsync({uri:es_resource, method: 'DELETE', body: ""}).then(function(response){
         var body = JSON.parse(response[1]);
         if(!body.found){
@@ -1011,23 +1032,63 @@ ElasticHarvest.prototype.delete = function(id){
         }
         return body;
     });
-}
+};
 
 
 /** POST RELATED **/
-//Note - only 1 "after" callback is allowed per endpoint, so if you enable autosync, you're giving it up to elastic-harvest.
-ElasticHarvest.prototype.enableAutoSync= function(endpoint){
+//Note - only 1 "after" callback is allowed per endpoint, so if you enable autosync w/o oplog integration, you're giving it up to elastic-harvest.
+ElasticHarvest.prototype.enableAutoSync= function(){
+    var endpoint = inflect.singularize(this.type);
     var _this = this;
-    this.harvest_app.after(endpoint, function (req, res, next) {
-        if (req.method === 'POST' || (req.method === 'PUT' && this.id)) {
-            return _this.expandAndSync(this)
-                .then(function(response){
-                    return unexpandEntity(response);
-                });
-        } else {
-            return this;
+    if(!!this.harvest_app.options.oplogConnectionString){
+        console.warn("[Elastic-Harvest] Will sync primary resource data via oplog");
+        this.harvest_app.onChange(endpoint,{insert:resourceChanged,update:resourceChanged,delete: resourceDeleted});
+        function resourceDeleted(resourceId){
+            _this.delete(resourceId)
+                .catch(function(error){
+                    //This sort of error will not be solved by retrying it a bunch of times.
+                    console.warn(error);
+                })
+        };
+
+        function resourceChanged (resourceId){
+            console.log("[Elastic-Harvest] Syncing "+ _this.type +'/'+resourceId);
+            return _this.harvest_app.adapter.find(endpoint,resourceId.toString())
+                .then(function(resource){
+                    if (!resource){
+                        throw new Error("[Elastic-Harvest] Missing "+ _this.type +'/'+resourceId+". Cannot sync with elastic-harvest.")
+                    }
+                    return _this.expandAndSync(resource)
+                })
+                .catch(function(error){
+                    //This sort of error will not be solved by retrying it a bunch of times.
+                    console.warn(error);
+                })
         }
-    });
+
+    }else{
+        console.warn("[Elastic-Harvest] Will sync primary resource data via harvest:after");
+
+        this.harvest_app.after(endpoint, function (req, res, next) {
+            var deletedResource = this;
+            if (req.method === 'POST' || (req.method === 'PUT' && this.id)) {
+                console.log("[Elastic-Harvest] Syncing "+ _this.type +'/'+this.id);
+                return _this.expandAndSync(this)
+                    .then(function(response){
+                        return unexpandEntity(response);
+                    });
+            } else if (req.method === 'DELETE'){
+                return this;
+
+                return _this.delete(this.id)
+                    .then(function(){
+                        return deletedResource;
+                    })
+            } else {
+                return this;
+            }
+        });
+    }
 };
 
 //expandAndSync: will expand all links in the model, then push it to elastic search.
@@ -1052,7 +1113,7 @@ ElasticHarvest.prototype.sync = function(model){
     var options = {uri: this.es_url + '/'+this.index+'/'+this.type+'/' + model.id, body: esBody,pool:postPool};
 
     return new RSVP.Promise(function (resolve, reject) {
-        request.put(options, function (error, response, body) {
+            request.put(options, function (error, response, body) {
             body = JSON.parse(body);
             if (error || body.error) {
                 var errMsg = error?error.message?error.message:JSON.stringify(error):JSON.stringify(body.error);
@@ -1201,7 +1262,7 @@ ElasticHarvest.prototype.initializeMapping=function(mapping,shouldNotRetry){
     return requestAsync({uri:es_resource, method: 'PUT', body:reqBody}).then(function(response){
         var body = JSON.parse(response[1]);
         if(body.error){
-            if(_s.startsWith(body.error,"IndexMissingException") && !shouldNotRetry){
+            if(_s.contains(body.error,"IndexMissingException") && !shouldNotRetry){
                 console.warn("[Elastic-Harvest] Looks like we need to create an index - I'll handle that automatically for you & will retry adding the mapping afterward.");
                 return _this.initializeIndex().then(function(){return _this.initializeMapping(mapping,true)});
             }else{

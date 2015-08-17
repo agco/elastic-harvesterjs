@@ -18,6 +18,8 @@ Terms & Examples:
 
 {ES_SERVER_URL} e.g. http://localhost:9200
 
+{HARVESTER_APP_URL} e.g. http:localhost:9000
+
 {ES_INDEX} e.g. dealer-api
 
 {ES_TYPE} e.g. dealers
@@ -57,7 +59,7 @@ Usage: node mappingManager.js get {ES_SERVER_URL} {ES_INDEX}
 - UPDATE (destructive, *causes data loss to entire index*)
 Usage: node mappingManager.js update {ES_SERVER_URL} {ES_INDEX} {ES_TYPE} {PATH-TO-NEW-MAPPING-JSON-FILE}
 - DELETE (destructive)
-Usage: node mappingManager.js delete {ES_SERVER_URL} {ES_INDEX}
+Usage: node mappingManager.js delete {ES_SERVER_URL} {ES_INDEX} {ES_TYPE}
 
 #### Reloader
 
@@ -67,7 +69,7 @@ Reload elastic-search index from a syncronized mongo-powered harvester endpoint.
 Meant to be run @cmd line, but can also be required and used in code.
 
 - RELOAD
-Usage: node reloader.js {ES_SERVER_URL} {ES_TYPE}
+Usage: node reloader.js {HARVESTER_APP_URL} {ES_TYPE}
 
 NB: {ES_TYPE} is optional. If not specified, defaults to the part of the url after the last "/".
 

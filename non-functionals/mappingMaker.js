@@ -42,7 +42,7 @@ function MappingMaker(){
 
 MappingMaker.prototype.generateMapping=function(harvest_app,pov,outputFile){
     if(_.isString(harvest_app)){
-        harvest_app = require("../"+harvest_app)(options);
+        harvest_app = require(harvest_app)(options);
     }else{
         harvest_app = Promise.resolve(harvest_app);
     }
@@ -74,7 +74,7 @@ function make(harvest_app,pov){
     var schemaName = inflect.singularize(pov);
     var startingSchema = harvest_app._schema[schemaName];
 
-    var maxDepth=3;
+    var maxDepth=4;
     var depth=0;
 
     var retVal = {};
@@ -130,6 +130,10 @@ function make(harvest_app,pov){
             }else{
                 var fnType = getFunctionType(propertyValue);
                 if(fnType=="string"){
+                    cursor.id={
+                        "type":"string",
+                        "index": "not_analyzed"
+                    }
                     cursor[propertyName]={
                         "type":"string",
                         "index": "not_analyzed"
@@ -140,17 +144,18 @@ function make(harvest_app,pov){
                     }
                 } else if(fnType=="date"){
                     cursor[propertyName]={
-                        "type": "date",
-                        "format": "HH:mm"
+                        "type": "date"
                     }
                 } else if(fnType=="boolean"){
                     cursor[propertyName]={
                         "type": "boolean"
                     }
                 } else if(fnType=="array"){
-                    console.warn("[elastic-harvest] Array-type scaffolding not yet implemented; The elastic-search mapping scaffolded for this app will be incomplete.")
+                    console.warn("[mapping-maker] Array-type scaffolding not yet implemented; The elastic-search mapping scaffolded for this app will be incomplete wrt '"+propertyName+"' property.");
                 } else if(fnType=="buffer"){
-                    console.warn("[elastic-harvest] Buffer-type scaffolding not yet implemented; The elastic-search mapping scaffolded for this app will be incomplete.")
+                    console.warn("[mapping-maker] Buffer-type scaffolding not yet implemented; The elastic-search mapping scaffolded for this app will be incomplete wrt '"+propertyName+"' property.");
+                }else{
+                    console.warn("[mapping-maker] unsupported type; The elastic-search mapping scaffolded for this app will be incomplete wrt '"+propertyName+"' property.");
                 }
             }
         });

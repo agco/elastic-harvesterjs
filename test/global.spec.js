@@ -1,23 +1,12 @@
-#!/usr/bin/env node
 'use strict';
 
-var options = require('./config').options;
+var harvesterApp = require('./app.js');
+var events = require('./events.js');
+var config = require('./config.js');
 
-before(function (done) {
-    this.app = require('./index')(options)
-        .catch(function (error) {
-            done(error);
-            process.exit(1);
-        });
-    done();
-});
-after(function (done) {
-    this.app
-        .then(function (harvesterApp) {
-            harvesterApp.router.close();
-            this.app = null;
-        })
-        .finally(function () {
-            done();
-        });
+before(function () {
+    this.timeout(config.esIndexWaitTime + 1000);
+    return harvesterApp.apply(this).then(function (harvesterInstance) {
+        return events(harvesterInstance);
+    });
 });
