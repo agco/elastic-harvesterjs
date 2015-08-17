@@ -172,7 +172,7 @@ describe('aggregations', function () {
         });
     });
 
-    describe('Sampling in conjunction with aggs', function () {
+    describe.skip('Sampling in conjunction with aggs', function () {
         it('should be possible to do a level 1 top_hits aggregation', function (done) {
             request(config.baseUrl).get('/people/search?aggregations=mostpopular&mostpopular.type=top_hits&mostpopular.sort=-appearances&mostpopular.limit=1&script=sampler&script.maxSamples=1').expect(200).end(function (err,
                                                                                                                                                                                          res) {
@@ -275,7 +275,7 @@ describe('aggregations', function () {
         });
     });
 
-    describe('Sampling', function() {
+    describe.skip('Sampling', function() {
         beforeEach(function() {
             this.timeout(config.esIndexWaitTime + 10000);
             return seeder(this.harvesterApp).dropCollections('people')
@@ -336,7 +336,7 @@ describe('aggregations', function () {
         });
     });
 
-describe.only('Sampling with filters', function() {
+describe.skip('Sampling with filters', function() {
         beforeEach(function() {
             this.timeout(config.esIndexWaitTime + 10000);
             return seeder(this.harvesterApp).dropCollections('people')
