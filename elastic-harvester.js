@@ -912,7 +912,8 @@ ElasticHarvest.prototype.getEsQueryBody = function (predicates, nestedPredicates
             sortDirection=="desc" && (sortParam = sortParam.substr(1));
 
             if (Util.hasDotNesting(sortParam)){
-                //nested sort - not sure if this needs to be implemented.
+                //nested sort
+                sortTerm[sortParam]={order:sortDirection,"ignore_unmapped":true};
             }else if (sortParam=="distance"){
                 if(geoPredicateExists) {
                     sortTerm["_geo_distance"] =
