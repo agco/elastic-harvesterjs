@@ -51,7 +51,7 @@ describe('sorting', function () {
             });
     });
 
-    describe.only('nested sorting', function () {
+    describe('nested sorting', function () {
 
         it('should be possible to do a nested sort, ascending on numeric fields', function (done) {
             request(config.baseUrl).get('/people/search?sort=links.pets.appearances&include=pets&limit=1').expect(200).end(function (err, res) {
