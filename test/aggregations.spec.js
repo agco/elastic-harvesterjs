@@ -372,7 +372,7 @@ describe.skip('Sampling with filters', function() {
             })
         });
 
-        it('should return 3 results of 10 when max sampled is 3', function (done) {
+        it('should return 2 results of 10 when max sampled is 3', function (done) {
             this.timeout(config.esIndexWaitTime + 10000);
             request(config.baseUrl).get('/people/search?name=namex&script=sampler&script.maxSamples=3').expect(200).end(function (err, res) {
                 should.not.exist(err);
