@@ -59,7 +59,7 @@ Usage: node mappingManager.js get {ES_SERVER_URL} {ES_INDEX}
 - UPDATE (destructive, *causes data loss to entire index*)
 Usage: node mappingManager.js update {ES_SERVER_URL} {ES_INDEX} {ES_TYPE} {PATH-TO-NEW-MAPPING-JSON-FILE}
 - DELETE (destructive)
-Usage: node mappingManager.js delete {ES_SERVER_URL} {ES_INDEX}
+Usage: node mappingManager.js delete {ES_SERVER_URL} {ES_INDEX} {ES_TYPE}
 
 #### Reloader
 
