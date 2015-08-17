@@ -3,7 +3,7 @@ var request = require('supertest');
 var Promise = require('bluebird');
 var seeder = require('./seeder.js');
 
-describe.only('sorting', function () {
+describe('sorting', function () {
     function addLink(parentEndpoint,parentFixtureIndex,childEndpoint,childFixtureIndex){
         var payload = {};
 
