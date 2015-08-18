@@ -5,7 +5,6 @@ var $http = require('http-as-promised');
 var _s = require('underscore.string');
 var inflect= require('i')();
 var _ = require('lodash');
-var RSVP = require('rsvp');
 var Util =  require("./Util");
 var autoUpdateInputGenerator  = new (require("./autoUpdateInputGenerator"))();
 var SampleScript = require('./lib/scripts/sampler');
@@ -247,7 +246,7 @@ function ElasticHarvest(harvest_app,es_url,index,type,options) {
     }
 
     function sendSearchResponse(es_results, res, includes,fields,aggregationObjects) {
-        var initialPromise = RSVP.resolve();
+        var initialPromise = Promise.resolve();
         var padding = undefined;
         (process.env.NODE_ENV!="production") && (padding = 2);
 
@@ -1103,7 +1102,7 @@ ElasticHarvest.prototype.expandAndSync = function (models) {
             return _this.sync(result);
         })
     });
-    return inputIsArray?RSVP.all(promises):promises[0];
+    return inputIsArray?Promise.all(promises):promises[0];
 }
 
 //sync: will push model to elastic search WITHOUT expanding any links.
@@ -1112,7 +1111,7 @@ ElasticHarvest.prototype.sync = function(model){
     var _this = this;
     var options = {uri: this.es_url + '/'+this.index+'/'+this.type+'/' + model.id, body: esBody,pool:postPool};
 
-    return new RSVP.Promise(function (resolve, reject) {
+    return new Promise(function (resolve, reject) {
             request.put(options, function (error, response, body) {
             body = JSON.parse(body);
             if (error || body.error) {
@@ -1182,7 +1181,7 @@ ElasticHarvest.prototype.expandEntity = function (entity,depth,currentPath){
     }
 
     //To handle "links" of those freshly found objects, a bit of recursion.
-    return RSVP.hash(promises).then(function(results) {
+    return Promise.props(promises).then(function(results) {
         var furtherRequiredExpansions = {};
         var newDepth = depth+1;
         _.each(results || {}, function (val, key, list) {
@@ -1199,12 +1198,12 @@ ElasticHarvest.prototype.expandEntity = function (entity,depth,currentPath){
                 });
 
                 if(furtherRequiredExpansions[key]){
-                    furtherRequiredExpansions[key] = RSVP.all(furtherRequiredExpansions[key]);
+                    furtherRequiredExpansions[key] = Promise.all(furtherRequiredExpansions[key]);
                 }
             }
         });
         //Patch the results of recursion (to "depth+1" level) into the "depth" level entity
-        return RSVP.hash(furtherRequiredExpansions).then(function(response){
+        return Promise.props(furtherRequiredExpansions).then(function(response){
             _.each(response || {}, function (val, key, list) {
                 if(depth>0){
                     entity[key]=val;

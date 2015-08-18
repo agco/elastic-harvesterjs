@@ -22,7 +22,6 @@
     "lodash": "~2.4.1",
     "mongoose": "3.8.12",
     "request": "2.40.0",
-    "rsvp": "~3.0.14",
     "underscore.string": "~2.3.2",
     "woodman": "1.1.x"
   },
