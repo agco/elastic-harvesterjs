@@ -1,11 +1,5 @@
-var inflect = require('i')();
 var should = require('should');
-var _ = require('lodash');
-var RSVP = require('rsvp');
 var request = require('supertest');
-var Promise = RSVP.Promise;
-
-var config = require('./config.js');
 
 describe.skip('jsonapi error handling', function () {
 

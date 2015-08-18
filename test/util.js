@@ -1,5 +1,4 @@
-var RSVP = require('rsvp');
-var Promise = RSVP.Promise;
+var Promise = require('bluebird');
 var should = require('should');
 var _ = require('lodash');
 var request = require('supertest');
