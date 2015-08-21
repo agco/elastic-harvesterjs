@@ -1171,7 +1171,7 @@ ElasticHarvest.prototype.expandEntity = function (entity,depth,currentPath){
                 throw new Error(errorMessage);
             });
         }else{
-            console.warn("[Elastic-Harvest] Failed to find the name of the collection with "+key +" in it.");
+            console.warn("[Elastic-Harvest] Failed to find the name of the collection with "+key +" in it. This is not a bug if "+key+" is a cross-domain link.");
         }
     },this);
 
@@ -1307,8 +1307,10 @@ function getCollectionLookup(harvest_app,type){
                     }else{
                         setValueAndGetLinkedSchemas(propertyName,property[0].ref);
                     }
-                }else if (_.isObject(property)){
+                }else if (_.isObject(property) && !(property.baseUri)){
                     setValueAndGetLinkedSchemas(propertyName,property.ref);
+                } else if (_.isObject(property) && (property.baseUri)){
+                    console.warn("[Elastic-Harvest] Cannot sync cross-domain entities; Skipping "+property.ref);
                 }
             }
         });
