@@ -1,8 +1,7 @@
 var should = require('should');
 var _ = require('lodash');
-var RSVP = require('rsvp');
+var Promise = require('bluebird');
 var request = require('supertest');
-var Promise = RSVP.Promise;
 var fixtures = require('./fixtures');
 
 var seeder = require('./seeder.js');
@@ -37,7 +36,7 @@ describe('resources', function () {
         _.each(fixtures(), function (resources, collection) {
 
             it('in collection "' + collection + '"', function (done) {
-                RSVP.all(ids[collection].map(function (id) {
+                Promise.all(ids[collection].map(function (id) {
                         return new Promise(function (resolve) {
                             request(config.baseUrl).get('/' + collection + '/' + id).expect('Content-Type', /json/).expect(200).end(function (error, response) {
                                 should.not.exist(error);

@@ -1,9 +1,6 @@
-var inflect = require('i')();
 var should = require('should');
-var _ = require('lodash');
-var RSVP = require('rsvp');
+var Promise = require('bluebird');
 var request = require('supertest');
-var Promise = RSVP.Promise;
 var addLink = require('./util').addLink;
 
 var seeder = require('./seeder.js');
@@ -30,7 +27,7 @@ describe('associations', function () {
         promises.push(addLink('pets', linkObj1, config.baseUrl, '/pets/' + ids.pets[0]));
         promises.push(addLink('pets', linkObj2, config.baseUrl, '/pets/' + ids.pets[1]));
 
-        RSVP.all(promises).then(function () {
+        Promise.all(promises).then(function () {
             //Now trigger re-index & expansion of a person.
             addLink('people', linkObj3, config.baseUrl, '/people/' + ids.people[0]).then(function () {
                 setTimeout(function () {

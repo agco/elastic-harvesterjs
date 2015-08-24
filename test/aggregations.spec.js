@@ -275,7 +275,6 @@ describe('aggregations', function () {
         });
     });
 
-
     describe.skip('Sampling', function() {
         beforeEach(function() {
             this.timeout(config.esIndexWaitTime + 10000);
@@ -332,6 +331,63 @@ describe('aggregations', function () {
                 should.not.exist(err);
                 var body = JSON.parse(res.text);
                 body.people.length.should.equal(10);
+                done();
+            });
+        });
+    });
+
+describe.skip('Sampling with filters', function() {
+        beforeEach(function() {
+            this.timeout(config.esIndexWaitTime + 10000);
+            return seeder(this.harvesterApp).dropCollections('people')
+            .then(function() {
+                var people = _.times(10, function(index) {
+                    return {
+                        name : 'name' + index,
+                        "appearances": 3457,
+                        id: 'b767ffc1-0ab6-11e5-a3f4-470467a3b6a' + index
+                    };
+                });
+
+                people = people.concat(_.times(2, function(index) {
+                    return {
+                        name : 'namex',
+                        "appearances": 3457,
+                        id: 'b767ffc1-0ab6-11e5-a3f4-470467a3b6b' + index
+                    };
+                }));
+
+                people = people.concat(_.times(10, function(index) {
+                    return {
+                        name : 'namey',
+                        "appearances": 3457,
+                        id: 'b767ffc1-0ab6-11e5-a3f4-470467a3b6c' + index
+                    };
+                }));
+
+                return seeder(this.harvesterApp).post('people', people);
+            }.bind(this))
+            .then(function (res) {
+                return Promise.delay(config.esIndexWaitTime + 1000);
+            })
+        });
+
+        it('should return 2 results of 10 when max sampled is 3', function (done) {
+            this.timeout(config.esIndexWaitTime + 10000);
+            request(config.baseUrl).get('/people/search?name=namex&script=sampler&script.maxSamples=3').expect(200).end(function (err, res) {
+                should.not.exist(err);
+                var body = JSON.parse(res.text);
+                body.people.length.should.equal(2);
+                done();
+            });
+        });
+
+        it('should return 5 results of 10 when max sampled is 5', function (done) {
+            this.timeout(config.esIndexWaitTime + 10000);
+            request(config.baseUrl).get('/people/search?name=namey&script=sampler&script.maxSamples=5').expect(200).end(function (err, res) {
+                should.not.exist(err);
+                var body = JSON.parse(res.text);
+                body.people.length.should.equal(5);
                 done();
             });
         });
