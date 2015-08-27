@@ -8,6 +8,8 @@ var _ = require('lodash');
 var Util =  require("./Util");
 var autoUpdateInputGenerator  = new (require("./autoUpdateInputGenerator"))();
 var SampleScript = require('./lib/scripts/sampler');
+var sendError = require('harvesterjs').sendError;
+var JSONAPI_Error = require('harvesterjs').JSONAPI_Error;
 
 //Bonsai wants us to only send 1 ES query at a time, for POSTs/PUTs. Later on we can add more pools for other requests if needed.
 var http = require('http');
@@ -378,7 +380,7 @@ function ElasticHarvest(harvest_app,es_url,index,type,options) {
             });
         }).catch(function (error) {
                 console.error(error && error.stack || error);
-                res.status(500).end();
+                sendError(req, res, new JSONAPI_Error({status:500}));
             });
     }
 
@@ -416,9 +418,11 @@ function ElasticHarvest(harvest_app,es_url,index,type,options) {
                 return sendSearchResponse(es_results, res,includes,fields,aggregationObjects);
             }
         })
-        .catch(function(err, res) {
-            console.log('[Elastic-Harvest] Error', err.stack);
-            throw new Error("Your query was malformed, so it failed. Please check the api to make sure you're using it correctly.");
+        .catch(function(err) {
+            err.body && console.log('[Elastic-Harvest] Error description: ', err.body);
+            console.log('[Elastic-Harvest] Error stack: ', err.stack);
+            var error = new JSONAPI_Error({status:400, detail:"Your query was malformed, so it failed. Please check the api to make sure you're using it correctly."});
+            sendError(req, res, error);        
         });
     }
 
