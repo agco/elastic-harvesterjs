@@ -24,7 +24,7 @@
     "request": "2.40.0",
     "underscore.string": "~2.3.2",
     "woodman": "1.1.x",
-    "harvester": "git+https://github.com/agco/harvesterjs.git#2.0.1"
+    "harvester": "git+https://github.com/agco/harvesterjs.git#5fa37b12ccdd888700c186115498753ff15870ba"
   },
   "devDependencies": {
     "coveralls": "^2.11.2",
