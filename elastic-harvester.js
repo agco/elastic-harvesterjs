@@ -20,6 +20,7 @@ var DEFAULT_AGGREGATION_LIMIT = 0;//0=>Integer.MAX_VALUE
 var DEFAULT_TOP_HITS_AGGREGATION_LIMIT = 10; //Cannot be zero. NOTE: Default number of responses in top_hit aggregation is 10.
 var DEFAULT_SIMPLE_SEARCH_LIMIT = 1000; //simple searches don't specify a limit, and are only used internally for autoupdating
 var defaultOptions = {
+    asyncInMemory: false,
     graphDepth: {
        default: 3
     }
@@ -952,7 +953,7 @@ ElasticHarvest.prototype.enableAutoIndexUpdateOnModelUpdate = function (endpoint
     var _this = this;
     if(!!this.harvest_app.options.oplogConnectionString) {
         console.warn("[Elastic-Harvest] Will sync "+endpoint+" data via oplog");
-        this.harvest_app.onChange(endpoint,{insert:resourceChanged,update:resourceChanged,delete: resourceChanged});
+        this.harvest_app.onChange(endpoint,{insert:resourceChanged,update:resourceChanged,delete: resourceChanged, asyncInMemory: _this.options.asyncInMemory});
 
         function resourceChanged (resourceId) {
             console.log("[Elastic-Harvest] Syncing Change @" + idField + ' : ' + resourceId);
