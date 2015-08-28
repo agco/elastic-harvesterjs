@@ -1046,7 +1046,7 @@ ElasticHarvest.prototype.enableAutoSync= function(){
     var _this = this;
     if(!!this.harvest_app.options.oplogConnectionString){
         console.warn("[Elastic-Harvest] Will sync primary resource data via oplog");
-        this.harvest_app.onChange(endpoint,{insert:resourceChanged,update:resourceChanged,delete: resourceDeleted});
+        this.harvest_app.onChange(endpoint,{insert:resourceChanged,update:resourceChanged,delete: resourceDeleted, asyncInMemory: _this.options.asyncInMemory});
         function resourceDeleted(resourceId){
             _this.delete(resourceId)
                 .catch(function(error){
