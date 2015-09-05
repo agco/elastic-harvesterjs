@@ -1171,10 +1171,10 @@ ElasticHarvest.prototype.expandEntity = function (entity,depth,currentPath){
     }
 
     function fetchExternalLink(collectionName, val, key) {
-        if (collectionName.baseUri) {
+        if (collectionName.getBaseUri instanceof Function && collectionName.getRef instanceof Function) {
             var id = val && val.id || val;
-            var pluralizedType = inflect.pluralize(collectionName.ref);
-            var url = collectionName.baseUri + '/' + pluralizedType + '?id=' + id;
+            var pluralizedType = inflect.pluralize(collectionName.getRef());
+            var url = collectionName.getBaseUri() + '/' + pluralizedType + '?id=' + id;
             promises[key] = $http.get(url).spread(function (res, body) {
                 body = JSON.parse(body);
                 var result = body[pluralizedType][0];
@@ -1355,8 +1355,14 @@ function getCollectionLookup(harvest_app,type){
                     }
                 }else if (_.isObject(property) && !(property.baseUri)){
                     setValueAndGetLinkedSchemas(propertyName,property.ref);
-                } else if (_.isObject(property) && (property.baseUri)){
-                    setValueAndGetLinkedSchemas(propertyName, {ref: property.ref, baseUri: property.baseUri});
+                } else if (_.isObject(property) && (property.baseUri)) {
+                    setValueAndGetLinkedSchemas(propertyName, {
+                        getRef: function () {
+                            return property.ref;
+                        }, getBaseUri: function () {
+                            return property.baseUri;
+                        }
+                    });
                 }
             }
         });
