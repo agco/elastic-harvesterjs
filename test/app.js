@@ -6,10 +6,13 @@ var Joi = require('joi');
 var config = require('./config.js');
 
 function configureApp(harvesterApp) {
-    var peopleSearch;
+    var peopleSearch, equipmentSearch;
     //This circumvents a dependency issue between harvest and elastic-harvest.
     harvesterApp.router.get('/people/search', function () {
         peopleSearch.route.apply(peopleSearch, arguments);
+    });
+    harvesterApp.router.get('/equipment/search', function () {
+        equipmentSearch.route.apply(equipmentSearch, arguments);
     });
 
     var options = harvesterApp.options;
@@ -33,6 +36,11 @@ function configureApp(harvesterApp) {
             }
         }).resource('toy', {
             name: Joi.string()
+        }).resource('equipment', {
+            name: Joi.string(),
+            links: {
+                dealer: { ref: 'dealer', baseUri: 'http://localhost:' + (config.harvester.port + 1) }
+            }
         });
 
     peopleSearch = new ElasticHarvest(harvesterApp, options.es_url, options.es_index, "people");
@@ -40,9 +48,17 @@ function configureApp(harvesterApp) {
     peopleSearch.enableAutoSync("person");
     peopleSearch.enableAutoIndexUpdate();
 
+    equipmentSearch = new ElasticHarvest(harvesterApp, options.es_url, options.es_index, 'equipment');
+    equipmentSearch.setHarvestRoute(harvesterApp.createdResources['equipment']);
+    equipmentSearch.enableAutoSync('equipment');
+    equipmentSearch.enableAutoIndexUpdate();
+
     return peopleSearch.deleteIndex().then(function () {
-        return peopleSearch.initializeMapping(require("./test.mapping.js"));
+        return peopleSearch.initializeMapping(require("./people.mapping.js"));
     }).then(function (response) {
+            console.log('Initializing ES mapping: ' + JSON.stringify(response));
+            return equipmentSearch.initializeMapping(require("./equipment.mapping.js"));
+        }).then(function (response) {
             console.log('Initializing ES mapping: ' + JSON.stringify(response));
             return harvesterApp;
         });
