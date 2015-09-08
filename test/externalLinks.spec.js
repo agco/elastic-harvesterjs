@@ -90,16 +90,7 @@ describe('Syncing external links', function () {
                     done();
                 });
         });
-        it('should allow searching on properties different than id from linked entity from remote API', function (done) {
-            request(config.baseUrl).get('/equipment/search?links.dealer.name=Dilear')
-                .expect(200).end(function (err, res) {
-                    should.not.exist(err);
-                    var body = JSON.parse(res.text);
-                    body.equipment.length.should.equal(1);
-                    body.equipment[0].links.should.have.property('dealer', 'd767ffc1-0ab6-11e5-a3f4-470467a3b6a8');
-                    done();
-                });
-        });
+
         it('should allow including remote links', function (done) {
             request(config.baseUrl).get('/equipment/search?include=dealer&links.dealer.id=d767ffc1-0ab6-11e5-a3f4-470467a3b6a8')
                 .expect(200).end(function (err, res) {
