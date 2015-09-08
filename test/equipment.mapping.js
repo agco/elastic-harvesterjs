@@ -18,10 +18,6 @@ module.exports={
                             "id": {
                                 "type": "string",
                                 "index": "not_analyzed"
-                            },
-                            "name": {
-                                "type": "string",
-                                "index": "not_analyzed"
                             }
                         }
                     }

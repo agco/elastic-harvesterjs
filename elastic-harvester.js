@@ -1170,35 +1170,6 @@ ElasticHarvest.prototype.expandEntity = function (entity,depth,currentPath){
         });
     }
 
-    function fetchExternalLink(collectionName, val, key) {
-        if (collectionName.getBaseUri instanceof Function && collectionName.getRef instanceof Function) {
-            var id = val && val.id || val;
-            var pluralizedType = inflect.pluralize(collectionName.getRef());
-            var url = collectionName.getBaseUri() + '/' + pluralizedType + '?id=' + id;
-            promises[key] = $http.get(url).spread(function (res, body) {
-                body = JSON.parse(body);
-                var result = body[pluralizedType][0];
-                if (!result) {
-                    throw new Error('Remote entity not found at ' + url);
-                }
-                expandWithResult(entity, key, result);
-            }).catch(function (error) {
-                    console.warn('Problem feching external link', url, error && error.stack || error);
-                    var result = {id: id};
-                    expandWithResult(entity, key, result);
-                });
-        } else {
-            var errorMessage;
-            try {
-                errorMessage = 'Unsupported collection descriptor:' + JSON.stringify(collectionName);
-            } catch (e) {
-                errorMessage = 'Unsupported collection descriptor:' + collectionName;
-            }
-            console.warn(errorMessage);
-            promises[key] = Promise.reject(new Error(errorMessage));
-        }
-    }
-
     if(!depthIsInScope(this.options,depth,currentPath)){
         return;
     }
@@ -1212,7 +1183,9 @@ ElasticHarvest.prototype.expandEntity = function (entity,depth,currentPath){
         var collectionName = _this.collectionLookup[key];
         if (collectionName) {
             if (_.isObject(collectionName)) {
-                fetchExternalLink(collectionName,val,key);
+                var result = {id: val && val.id || val};
+                expandWithResult(entity, key, result);
+                promises[key] = Promise.resolve(result);
             } else {
                 fetchLocalLink(collectionName,val,key);
             }
