@@ -853,9 +853,12 @@ ElasticHarvest.prototype.getEsQueryBody = function (predicates, nestedPredicates
                     _.each(aggregationObject.sort.split(','),function(sortParam) {
                         var sortDirection = (sortParam[0]!="-"?"asc":"desc");
                         sortDirection=="desc" && (sortParam = sortParam.substr(1));
+                        var lastDot = sortParam.lastIndexOf('.')
                         shallowAggs.top_hits.sort= shallowAggs.top_hits.sort || [];
                         var sortTerm = {};
-                        sortTerm[sortParam]={"order":sortDirection};
+                        var sortField = sortParam.substring(lastDot + 1);
+                        var nestedPath = sortParam.substring(0, lastDot);
+                        sortTerm[sortField]={"order":sortDirection, "nested_path": nestedPath, "ignore_unmapped":true};
                         shallowAggs.top_hits.sort.push(sortTerm);
                     });
                 }
