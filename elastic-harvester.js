@@ -542,7 +542,7 @@ ElasticHarvest.prototype.getEsQueryBody = function (predicates, nestedPredicates
                         actualValue = innerFieldValue.substr(3);
                         operator = operatorMap[innerFieldValue.substr(0,2)];
                         fragment = fragment || {"query": {"range": {}}};
-                        fragment["query"]["range"][field] = {};
+                        fragment["query"]["range"][field] = fragment["query"]["range"][field] || {};
                         fragment["query"]["range"][field][operator] = actualValue;
                         isNotMatchQuery=true;
                     }

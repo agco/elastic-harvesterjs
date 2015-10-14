@@ -130,6 +130,25 @@ describe("filters", function () {
         });
     });
 
+    it('should support multiple range queries on the same nested property', function (done) {
+        request(config.baseUrl).get('/people/search?links.pets.appearances=lt=1904&links.pets.appearances=ge=1903').expect(200).end(function (err, res) {
+            should.not.exist(err);
+            var body = JSON.parse(res.text);
+            (body.people.length).should.equal(1);
+            (body.people[0].name).should.equal('Dilbert');
+            done();
+        });
+    });
+
+    it('should support multiple range queries on the same nested property', function (done) {
+        request(config.baseUrl).get('/people/search?links.pets.appearances=lt=1903&links.pets.appearances=ge=1903').expect(200).end(function (err, res) {
+            should.not.exist(err);
+            var body = JSON.parse(res.text);
+            (body.people.length).should.equal(0);
+            done();
+        });
+    });
+
     it('should support wildcard queries', function (done) {
         request(config.baseUrl).get('/people/search?name=D*').expect(200).end(function (err, res) {
             should.not.exist(err);
