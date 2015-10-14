@@ -542,7 +542,7 @@ ElasticHarvest.prototype.getEsQueryBody = function (predicates, nestedPredicates
                         actualValue = innerFieldValue.substr(3);
                         operator = operatorMap[innerFieldValue.substr(0,2)];
                         fragment = fragment || {"query": {"range": {}}};
-                        fragment["query"]["range"][field] = {};
+                        fragment["query"]["range"][field] = fragment["query"]["range"][field] || {};
                         fragment["query"]["range"][field][operator] = actualValue;
                         isNotMatchQuery=true;
                     }
@@ -855,7 +855,16 @@ ElasticHarvest.prototype.getEsQueryBody = function (predicates, nestedPredicates
                         sortDirection=="desc" && (sortParam = sortParam.substr(1));
                         shallowAggs.top_hits.sort= shallowAggs.top_hits.sort || [];
                         var sortTerm = {};
-                        sortTerm[sortParam]={"order":sortDirection};
+                        var lastDot = sortParam.lastIndexOf('.');
+                        if (lastDot !== -1) {
+                            var sortField = sortParam.substring(lastDot + 1);
+                            var nestedPath = sortParam.substring(0, lastDot);
+                            sortTerm[sortField]={"order":sortDirection, "nested_path": nestedPath, "ignore_unmapped":true};
+                        } else {
+                            var sortField = sortParam;
+                            sortTerm[sortField]={"order":sortDirection, "ignore_unmapped":true};
+                        }
+
                         shallowAggs.top_hits.sort.push(sortTerm);
                     });
                 }
