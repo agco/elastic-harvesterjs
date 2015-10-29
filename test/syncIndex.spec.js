@@ -8,7 +8,7 @@ var Promise = require('bluebird');
 var seeder = require('./seeder.js');
 var fixtures = require('./fixtures')();
 
-describe.only('#syncIndex', function() {
+describe('#syncIndex', function() {
     var config;
     before(function () {
         config = this.config;
@@ -42,6 +42,7 @@ describe.only('#syncIndex', function() {
     });
 
     it('works!', function() {
+        this.timeout(config.esIndexWaitTime + 10000);
         var dog = fixtures['pets'][0];
         dog.name = "dogebert";
         return this.peopleSearch.syncIndex('pets', 'update', dog)
