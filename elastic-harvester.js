@@ -1354,4 +1354,20 @@ function getCollectionLookup(harvest_app,type){
     return retVal;
 }
 
+ElasticHarvest.prototype.syncIndex = function(resource, action, data) {
+    //find the possible ES paths
+    //do a simple search for any
+    //sync all root docs
+    var EH = this;
+
+    var singleResource = inflect.singularize(resource);
+    var nestedUpdatePromises = _.chain(_.pairs(this.autoUpdateInput))
+        .filter(function findMatches(kv) {return kv[1] === singleResource;})
+        .map(function pluckKeys(kv) {
+            return EH.updateIndexForLinkedDocument(kv[0], data);
+        })
+        .value();
+    return Promise.all(nestedUpdatePromises);
+};
+
 module.exports = ElasticHarvest;
