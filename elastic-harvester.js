@@ -30,6 +30,7 @@ function ElasticHarvest(harvest_app,es_url,index,type,options) {
     if(harvest_app){
         this.collectionLookup=getCollectionLookup(harvest_app,type);
         this.autoUpdateInput=autoUpdateInputGenerator.make(harvest_app,type);
+        this.autoUpdateMap = generateUpdateMap(this.autoUpdateInput);
         this.adapter = harvest_app.adapter;
         this.harvest_app = harvest_app;
     }else{
@@ -1361,13 +1362,20 @@ ElasticHarvest.prototype.syncIndex = function(resource, action, data) {
     var EH = this;
 
     var singleResource = inflect.singularize(resource);
-    var nestedUpdatePromises = _.chain(_.pairs(this.autoUpdateInput))
-        .filter(function findMatches(kv) {return kv[1] === singleResource;})
-        .map(function pluckKeys(kv) {
-            return EH.updateIndexForLinkedDocument(kv[0], data);
-        })
-        .value();
+    var nestedUpdatePromises = _.map(this.autoUpdateMap[singleResource], function pluckKeys(path) {
+            return EH.updateIndexForLinkedDocument(path, data);
+        });
     return Promise.all(nestedUpdatePromises);
 };
+
+function generateUpdateMap(autoUpdateInput) {
+    var auto = {};
+    _.chain(_.pairs(autoUpdateInput))
+        .map(function(kv) {
+            if (!_.isArray(auto[kv[1]])) return auto[kv[1]] = [kv[0]];
+            return auto[kv[1]].push(kv[0]);
+        });
+    return auto;
+}
 
 module.exports = ElasticHarvest;
