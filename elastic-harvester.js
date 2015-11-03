@@ -30,7 +30,7 @@ function ElasticHarvest(harvest_app,es_url,index,type,options) {
     if(harvest_app){
         this.collectionLookup=getCollectionLookup(harvest_app,type);
         this.autoUpdateInput=autoUpdateInputGenerator.make(harvest_app,type);
-        this.autoUpdateMap = generateUpdateMap(this.autoUpdateInput);
+        this.invertedAutoUpdateInput = generateUpdateMap(this.autoUpdateInput);
         this.adapter = harvest_app.adapter;
         this.harvest_app = harvest_app;
     }else{
@@ -1362,7 +1362,7 @@ ElasticHarvest.prototype.syncIndex = function(resource, action, data) {
     var EH = this;
 
     var singleResource = inflect.singularize(resource);
-    var nestedUpdatePromises = _.map(this.autoUpdateMap[singleResource], function pluckKeys(path) {
+    var nestedUpdatePromises = _.map(this.invertedAutoUpdateInput[singleResource], function pluckKeys(path) {
             return EH.updateIndexForLinkedDocument(path, data);
         });
     return Promise.all(nestedUpdatePromises);
@@ -1370,11 +1370,10 @@ ElasticHarvest.prototype.syncIndex = function(resource, action, data) {
 
 function generateUpdateMap(autoUpdateInput) {
     var auto = {};
-    _.chain(_.pairs(autoUpdateInput))
-        .map(function(kv) {
-            if (!_.isArray(auto[kv[1]])) return auto[kv[1]] = [kv[0]];
-            return auto[kv[1]].push(kv[0]);
-        });
+    _.forOwn(autoUpdateInput, function(value, key) {
+        if (!_.isArray(auto[value])) return auto[value] = [key];
+        return auto[value].push(key);
+    });
     return auto;
 }
 
