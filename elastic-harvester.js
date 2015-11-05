@@ -5,10 +5,11 @@ var $http = require('http-as-promised');
 var _s = require('underscore.string');
 var inflect= require('i')();
 var _ = require('lodash');
-var RSVP = require('rsvp');
 var Util =  require("./Util");
 var autoUpdateInputGenerator  = new (require("./autoUpdateInputGenerator"))();
 var SampleScript = require('./lib/scripts/sampler');
+var sendError = require('harvesterjs').sendError;
+var JSONAPI_Error = require('harvesterjs').JSONAPI_Error;
 
 //Bonsai wants us to only send 1 ES query at a time, for POSTs/PUTs. Later on we can add more pools for other requests if needed.
 var http = require('http');
@@ -19,6 +20,7 @@ var DEFAULT_AGGREGATION_LIMIT = 0;//0=>Integer.MAX_VALUE
 var DEFAULT_TOP_HITS_AGGREGATION_LIMIT = 10; //Cannot be zero. NOTE: Default number of responses in top_hit aggregation is 10.
 var DEFAULT_SIMPLE_SEARCH_LIMIT = 1000; //simple searches don't specify a limit, and are only used internally for autoupdating
 var defaultOptions = {
+    asyncInMemory: false,
     graphDepth: {
        default: 3
     }
@@ -246,8 +248,8 @@ function ElasticHarvest(harvest_app,es_url,index,type,options) {
         });
     }
 
-    function sendSearchResponse(es_results, res, includes,fields,aggregationObjects) {
-        var initialPromise = RSVP.resolve();
+    function sendSearchResponse(es_results, req, res, includes,fields,aggregationObjects) {
+        var initialPromise = Promise.resolve();
         var padding = undefined;
         (process.env.NODE_ENV!="production") && (padding = 2);
 
@@ -370,6 +372,7 @@ function ElasticHarvest(harvest_app,es_url,index,type,options) {
                     .status(200)
                     .send(JSON.stringify(esResponse,undefined, padding));
             }, function(error){
+                    console.warn(error && error.stack || error);
                     esResponse = _this.harvestRoute.appendLinks(esResponse);
 
                 return res
@@ -379,7 +382,7 @@ function ElasticHarvest(harvest_app,es_url,index,type,options) {
             });
         }).catch(function (error) {
                 console.error(error && error.stack || error);
-                res.status(500).end();
+                sendError(req, res, new JSONAPI_Error({status:500}));
             });
     }
 
@@ -387,7 +390,7 @@ function ElasticHarvest(harvest_app,es_url,index,type,options) {
         var query = req.query;
 
         var params=[];
-    
+
         query['include'] && params.push("include="+ query['include']);
         query['limit'] && params.push("size="+ query['limit']);
         query['offset'] && params.push("from="+ query['offset']);
@@ -400,7 +403,7 @@ function ElasticHarvest(harvest_app,es_url,index,type,options) {
         if (query.script === 'sampler') {
             searchPromise = SampleScript.sample(index, type, esQuery, aggregationObjects, query, es_resource);
         }
-        
+
         searchPromise.spread(function (response) {;
             var es_results;
             response && response.body && (es_results = JSON.parse(response.body));
@@ -414,12 +417,14 @@ function ElasticHarvest(harvest_app,es_url,index,type,options) {
                 fields && (fields=fields.split(','));
                 //id field is required.
                 fields && fields.push("id");
-                return sendSearchResponse(es_results, res,includes,fields,aggregationObjects);
+                return sendSearchResponse(es_results,req,res,includes,fields,aggregationObjects);
             }
         })
-        .catch(function(err, res) {
-            console.log('[Elastic-Harvest] Error', err.stack);
-            throw new Error("Your query was malformed, so it failed. Please check the api to make sure you're using it correctly.");
+        .catch(function(err) {
+            err.body && console.log('[Elastic-Harvest] Error description: ', err.body);
+            console.log('[Elastic-Harvest] Error stack: ', err.stack);
+            var error = new JSONAPI_Error({status:400, detail:"Your query was malformed, so it failed. Please check the api to make sure you're using it correctly."});
+            sendError(req, res, error);
         });
     }
 
@@ -454,7 +459,7 @@ function unexpandEntity(sourceObject,includeFields){
     _.each(sourceObject.links || [],function(val,key){
         if(!_.isArray(sourceObject.links[key])){
             //I know the extra .toString seems unnecessary, but sometimes val.id is already an objectId, and other times its a string.
-            sourceObject.links[key] = val.id.toString();
+            sourceObject.links[key] = val.id && val.id.toString() || val && val.toString && val.toString();
 
         }else{
             _.each(sourceObject.links[key],function(innerVal,innerKey){
@@ -537,7 +542,7 @@ ElasticHarvest.prototype.getEsQueryBody = function (predicates, nestedPredicates
                         actualValue = innerFieldValue.substr(3);
                         operator = operatorMap[innerFieldValue.substr(0,2)];
                         fragment = fragment || {"query": {"range": {}}};
-                        fragment["query"]["range"][field] = {};
+                        fragment["query"]["range"][field] = fragment["query"]["range"][field] || {};
                         fragment["query"]["range"][field][operator] = actualValue;
                         isNotMatchQuery=true;
                     }
@@ -850,7 +855,16 @@ ElasticHarvest.prototype.getEsQueryBody = function (predicates, nestedPredicates
                         sortDirection=="desc" && (sortParam = sortParam.substr(1));
                         shallowAggs.top_hits.sort= shallowAggs.top_hits.sort || [];
                         var sortTerm = {};
-                        sortTerm[sortParam]={"order":sortDirection};
+                        var lastDot = sortParam.lastIndexOf('.');
+                        if (lastDot !== -1) {
+                            var sortField = sortParam.substring(lastDot + 1);
+                            var nestedPath = sortParam.substring(0, lastDot);
+                            sortTerm[sortField]={"order":sortDirection, "nested_path": nestedPath, "ignore_unmapped":true};
+                        } else {
+                            var sortField = sortParam;
+                            sortTerm[sortField]={"order":sortDirection, "ignore_unmapped":true};
+                        }
+
                         shallowAggs.top_hits.sort.push(sortTerm);
                     });
                 }
@@ -949,7 +963,7 @@ ElasticHarvest.prototype.enableAutoIndexUpdateOnModelUpdate = function (endpoint
     var _this = this;
     if(!!this.harvest_app.options.oplogConnectionString) {
         console.warn("[Elastic-Harvest] Will sync "+endpoint+" data via oplog");
-        this.harvest_app.onChange(endpoint,{insert:resourceChanged,update:resourceChanged,delete: resourceChanged});
+        this.harvest_app.onChange(endpoint,{insert:resourceChanged,update:resourceChanged,delete: resourceChanged, asyncInMemory: _this.options.asyncInMemory});
 
         function resourceChanged (resourceId) {
             console.log("[Elastic-Harvest] Syncing Change @" + idField + ' : ' + resourceId);
@@ -957,7 +971,7 @@ ElasticHarvest.prototype.enableAutoIndexUpdateOnModelUpdate = function (endpoint
             return _this.updateIndexForLinkedDocument(idField, {id:resourceId.toString()})
                 .catch(function (error) {
                     //This sort of error will not be solved by retrying it a bunch of times.
-                    console.warn(error);
+                    console.warn(error && error.stack || error);
                 })
         }
     }else{
@@ -1042,12 +1056,12 @@ ElasticHarvest.prototype.enableAutoSync= function(){
     var _this = this;
     if(!!this.harvest_app.options.oplogConnectionString){
         console.warn("[Elastic-Harvest] Will sync primary resource data via oplog");
-        this.harvest_app.onChange(endpoint,{insert:resourceChanged,update:resourceChanged,delete: resourceDeleted});
+        this.harvest_app.onChange(endpoint,{insert:resourceChanged,update:resourceChanged,delete: resourceDeleted, asyncInMemory: _this.options.asyncInMemory});
         function resourceDeleted(resourceId){
             _this.delete(resourceId)
                 .catch(function(error){
                     //This sort of error will not be solved by retrying it a bunch of times.
-                    console.warn(error);
+                    console.warn(error && error.stack || error);
                 })
         };
 
@@ -1062,7 +1076,7 @@ ElasticHarvest.prototype.enableAutoSync= function(){
                 })
                 .catch(function(error){
                     //This sort of error will not be solved by retrying it a bunch of times.
-                    console.warn(error);
+                    console.warn(error && error.stack || error);
                 })
         }
 
@@ -1103,7 +1117,7 @@ ElasticHarvest.prototype.expandAndSync = function (models) {
             return _this.sync(result);
         })
     });
-    return inputIsArray?RSVP.all(promises):promises[0];
+    return inputIsArray?Promise.all(promises):promises[0];
 }
 
 //sync: will push model to elastic search WITHOUT expanding any links.
@@ -1112,7 +1126,7 @@ ElasticHarvest.prototype.sync = function(model){
     var _this = this;
     var options = {uri: this.es_url + '/'+this.index+'/'+this.type+'/' + model.id, body: esBody,pool:postPool};
 
-    return new RSVP.Promise(function (resolve, reject) {
+    return new Promise(function (resolve, reject) {
             request.put(options, function (error, response, body) {
             body = JSON.parse(body);
             if (error || body.error) {
@@ -1136,6 +1150,35 @@ function depthIsInScope(options,depth,currentPath){
 }
 
 ElasticHarvest.prototype.expandEntity = function (entity,depth,currentPath){
+    function expandWithResult(entity, key, result) {
+        if (depth > 0) {
+            entity[key] = result;
+        } else {
+            entity.links[key] = result;
+        }
+    }
+
+    function fetchLocalLink(collectionName,val,key) {
+        var findFnName = "find";
+        if (_.isArray(entity.links[key])) {
+            findFnName = "findMany";
+        }
+        promises[key] = _this.adapter[findFnName](collectionName, entity.links[key]).then(function (result) {
+            expandWithResult(entity, key, result);
+            return result;
+        }, function (err) {
+            var errorMessage = err || ("" + val + " could not be found in " + collectionName);
+            //TODO: finish support for deletes. Maybe this comes back as an error & rejects the update.
+//                if(depth>0){
+//                    delete entity[key];
+//                }else{
+//                    delete entity.links[key];
+//                }
+            console.warn(errorMessage && errorMessage.stack || errorMessage);
+            throw new Error(errorMessage);
+        });
+    }
+
     if(!depthIsInScope(this.options,depth,currentPath)){
         return;
     }
@@ -1145,34 +1188,18 @@ ElasticHarvest.prototype.expandEntity = function (entity,depth,currentPath){
     var promises = {};
     var _this = this;
     //The first step to expand an entity is to get the objects it's linked to.
-    _.each(entity.links || {}, function(val,key,list){
+    _.each(entity.links || {}, function(val,key){
         var collectionName = _this.collectionLookup[key];
-        if(collectionName) {
-            var findFnName = "find";
-            if(_.isArray(entity.links[key])){
-                findFnName = "findMany";
+        if (collectionName) {
+            if (_.isObject(collectionName)) {
+                var result = {id: val && val.id || val};
+                expandWithResult(entity, key, result);
+                promises[key] = Promise.resolve(result);
+            } else {
+                fetchLocalLink(collectionName,val,key);
             }
-            promises[key] = _this.adapter[findFnName](collectionName, entity.links[key]).then(function(result){
-
-                if(depth>0){
-                    entity[key] = result;
-                }else{
-                    entity.links[key] = result;
-                }
-                return result;
-            },function(err){
-                var errorMessage = err || (""+ val+ " could not be found in "+collectionName);
-                //TODO: finish support for deletes. Maybe this comes back as an error & rejects the update.
-//                if(depth>0){
-//                    delete entity[key];
-//                }else{
-//                    delete entity.links[key];
-//                }
-                console.warn(errorMessage);
-                throw new Error(errorMessage);
-            });
-        }else{
-            console.warn("[Elastic-Harvest] Failed to find the name of the collection with "+key +" in it.");
+        } else {
+            console.warn("[Elastic-Harvest] Failed to find the name of the collection with " + key + " in it.");
         }
     },this);
 
@@ -1182,7 +1209,7 @@ ElasticHarvest.prototype.expandEntity = function (entity,depth,currentPath){
     }
 
     //To handle "links" of those freshly found objects, a bit of recursion.
-    return RSVP.hash(promises).then(function(results) {
+    return Promise.props(promises).then(function(results) {
         var furtherRequiredExpansions = {};
         var newDepth = depth+1;
         _.each(results || {}, function (val, key, list) {
@@ -1199,12 +1226,12 @@ ElasticHarvest.prototype.expandEntity = function (entity,depth,currentPath){
                 });
 
                 if(furtherRequiredExpansions[key]){
-                    furtherRequiredExpansions[key] = RSVP.all(furtherRequiredExpansions[key]);
+                    furtherRequiredExpansions[key] = Promise.all(furtherRequiredExpansions[key]);
                 }
             }
         });
         //Patch the results of recursion (to "depth+1" level) into the "depth" level entity
-        return RSVP.hash(furtherRequiredExpansions).then(function(response){
+        return Promise.props(furtherRequiredExpansions).then(function(response){
             _.each(response || {}, function (val, key, list) {
                 if(depth>0){
                     entity[key]=val;
@@ -1308,12 +1335,20 @@ function getCollectionLookup(harvest_app,type){
                     }else{
                         setValueAndGetLinkedSchemas(propertyName,property[0].ref);
                     }
-                }else if (_.isObject(property)){
+                }else if (_.isObject(property) && !(property.baseUri)){
                     setValueAndGetLinkedSchemas(propertyName,property.ref);
+                } else if (_.isObject(property) && (property.baseUri)) {
+                    setValueAndGetLinkedSchemas(propertyName, {
+                        getRef: function () {
+                            return property.ref;
+                        }, getBaseUri: function () {
+                            return property.baseUri;
+                        }
+                    });
                 }
             }
         });
-    };
+    }
 
     getLinkedSchemas(startingSchema);
     return retVal;

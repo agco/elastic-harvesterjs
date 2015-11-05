@@ -1,7 +1,7 @@
 {
   "name": "elastic-harvesterjs",
   "description": "Connects Elastic Search, harvester.js & mongodb in a jiff!",
-  "version": "2.1.1",
+  "version": "2.3.6",
   "keywords": [
     "elasticsearch",
     "elastic-search",
@@ -16,19 +16,18 @@
   },
   "dependencies": {
     "bluebird": "~2.3.2",
+    "harvesterjs": "2.2.1",
     "http-as-promised": "~0.1.0",
     "i": "~0.3.2",
     "joi": "^6.4.3",
     "lodash": "~2.4.1",
     "mongoose": "3.8.12",
     "request": "2.40.0",
-    "rsvp": "~3.0.14",
     "underscore.string": "~2.3.2",
     "woodman": "1.1.x"
   },
   "devDependencies": {
     "coveralls": "^2.11.2",
-    "harvester": "git+https://github.com/agco/harvesterjs.git#2.0.1",
     "istanbul": "^0.3.15",
     "mocha": "~1.20.1",
     "mocha-lcov-reporter": "0.0.2",
