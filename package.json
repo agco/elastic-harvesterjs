@@ -16,6 +16,7 @@
   },
   "dependencies": {
     "bluebird": "~2.3.2",
+    "harvesterjs": "2.2.1",
     "http-as-promised": "~0.1.0",
     "i": "~0.3.2",
     "joi": "^6.4.3",
@@ -23,8 +24,7 @@
     "mongoose": "3.8.12",
     "request": "2.40.0",
     "underscore.string": "~2.3.2",
-    "woodman": "1.1.x",
-    "harvester": "git+https://github.com/agco/harvesterjs.git#2.2.1"
+    "woodman": "1.1.x"
   },
   "devDependencies": {
     "coveralls": "^2.11.2",
