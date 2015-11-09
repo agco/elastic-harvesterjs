@@ -1359,13 +1359,26 @@ ElasticHarvest.prototype.syncIndex = function(resource, action, data) {
     //find the possible ES paths
     //do a simple search for any
     //sync all root docs
+    //if root and update or insert call expandAndSync directly
+    //else root and delete call delete directly
     var EH = this;
 
-    var singleResource = inflect.singularize(resource);
-    var nestedUpdatePromises = _.map(this.invertedAutoUpdateInput[singleResource], function pluckKeys(path) {
+    if (resource === EH.type) {
+        return handleRootDocument(action, data);
+    } else {
+        return handleNestedDocument(resource, data);
+    }
+    function handleRootDocument(action, data) {
+        if (action === "DELETE") return EH.delete(data);
+        return EH.expandAndSync(data);
+    }
+    function handleNestedDocument(resource, data) {
+        var singleResource = inflect.singularize(resource);
+        var updatePromises = _.map(EH.invertedAutoUpdateInput[singleResource], function pluckKeys(path) {
             return EH.updateIndexForLinkedDocument(path, data);
         });
-    return Promise.all(nestedUpdatePromises);
+        return Promise.all(updatePromises);
+    }
 };
 
 function generateUpdateMap(autoUpdateInput) {
