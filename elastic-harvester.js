@@ -1356,30 +1356,31 @@ function getCollectionLookup(harvest_app,type){
 }
 
 ElasticHarvest.prototype.syncIndex = function(resource, action, data) {
+    if (resource === this.type) {
+        return handleRootDocument(this, action, data);
+    } else {
+        return handleNestedDocument(this, resource, data);
+    }
+};
+
+function handleRootDocument(EH, action, data) {
+    //if root and update or insert call expandAndSync directly
+    //else root and delete call delete directly
+    var isDelete = action.replace(/\w/,'').toUpperCase() === "DELETE";
+    if (isDelete) return EH.delete(data.id);
+    return EH.expandAndSync.apply(EH, data);
+}
+
+function handleNestedDocument(EH, resource, data) {
     //find the possible ES paths
     //do a simple search for any
     //sync all root docs
-    //if root and update or insert call expandAndSync directly
-    //else root and delete call delete directly
-    var EH = this;
-
-    if (resource === EH.type) {
-        return handleRootDocument(action, data);
-    } else {
-        return handleNestedDocument(resource, data);
-    }
-    function handleRootDocument(action, data) {
-        if (action === "DELETE") return EH.delete(data.id);
-        return EH.expandAndSync(data);
-    }
-    function handleNestedDocument(resource, data) {
-        var singleResource = inflect.singularize(resource);
-        var updatePromises = _.map(EH.invertedAutoUpdateInput[singleResource], function pluckKeys(path) {
-            return EH.updateIndexForLinkedDocument(path, data);
-        });
-        return Promise.all(updatePromises);
-    }
-};
+    var singleResource = inflect.singularize(resource);
+    var updatePromises = _.map(EH.invertedAutoUpdateInput[singleResource], function pluckKeys(path) {
+        return EH.updateIndexForLinkedDocument(path, data);
+    });
+    return Promise.all(updatePromises);
+}
 
 function generateUpdateMap(autoUpdateInput) {
     var auto = {};
