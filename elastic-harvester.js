@@ -1369,7 +1369,7 @@ ElasticHarvest.prototype.syncIndex = function(resource, action, data) {
         return handleNestedDocument(resource, data);
     }
     function handleRootDocument(action, data) {
-        if (action === "DELETE") return EH.delete(data);
+        if (action === "DELETE") return EH.delete(data.id);
         return EH.expandAndSync(data);
     }
     function handleNestedDocument(resource, data) {
