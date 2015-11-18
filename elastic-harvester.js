@@ -30,6 +30,7 @@ function ElasticHarvest(harvest_app,es_url,index,type,options) {
     if(harvest_app){
         this.collectionLookup=getCollectionLookup(harvest_app,type);
         this.autoUpdateInput=autoUpdateInputGenerator.make(harvest_app,type);
+        this.invertedAutoUpdateInput = generateUpdateMap(this.autoUpdateInput);
         this.adapter = harvest_app.adapter;
         this.harvest_app = harvest_app;
     }else{
@@ -1122,6 +1123,8 @@ ElasticHarvest.prototype.expandAndSync = function (models) {
 
 //sync: will push model to elastic search WITHOUT expanding any links.
 ElasticHarvest.prototype.sync = function(model){
+    model = _.cloneDeep(model);
+    model._lastUpdated = new Date().getTime();
     var esBody = JSON.stringify(model);
     var _this = this;
     var options = {uri: this.es_url + '/'+this.index+'/'+this.type+'/' + model.id, body: esBody,pool:postPool};
@@ -1352,6 +1355,42 @@ function getCollectionLookup(harvest_app,type){
 
     getLinkedSchemas(startingSchema);
     return retVal;
+}
+
+ElasticHarvest.prototype.syncIndex = function(resource, action, data) {
+    if (resource === this.type) {
+        return syncRootDocument(this, action, data);
+    } else {
+        return syncNestedDocument(this, resource, data);
+    }
+};
+
+function syncRootDocument(EH, action, data) {
+    //if root and update or insert call expandAndSync directly
+    //else root and delete call delete directly
+    var isDelete = action.replace(/\w/,'').toUpperCase() === "DELETE";
+    if (isDelete) return EH.delete(data.id);
+    return EH.expandAndSync.apply(EH, data);
+}
+
+function syncNestedDocument(EH, resource, data) {
+    //find the possible ES paths
+    //do a simple search for any
+    //sync all root docs
+    var singleResource = inflect.singularize(resource);
+    var updatePromises = _.map(EH.invertedAutoUpdateInput[singleResource], function pluckKeys(path) {
+        return EH.updateIndexForLinkedDocument(path, data);
+    });
+    return Promise.all(updatePromises);
+}
+
+function generateUpdateMap(autoUpdateInput) {
+    var auto = {};
+    _.forOwn(autoUpdateInput, function(value, key) {
+        if (!_.isArray(auto[value])) return auto[value] = [key];
+        return auto[value].push(key);
+    });
+    return auto;
 }
 
 module.exports = ElasticHarvest;
