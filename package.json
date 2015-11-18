@@ -1,7 +1,7 @@
 {
   "name": "elastic-harvesterjs",
   "description": "Connects Elastic Search, harvester.js & mongodb in a jiff!",
-  "version": "2.3.6",
+  "version": "2.3.7",
   "keywords": [
     "elasticsearch",
     "elastic-search",
