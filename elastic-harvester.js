@@ -1123,6 +1123,8 @@ ElasticHarvest.prototype.expandAndSync = function (models) {
 
 //sync: will push model to elastic search WITHOUT expanding any links.
 ElasticHarvest.prototype.sync = function(model){
+    model = _.cloneDeep(model);
+    model._lastUpdated = new Date().getTime();
     var esBody = JSON.stringify(model);
     var _this = this;
     var options = {uri: this.es_url + '/'+this.index+'/'+this.type+'/' + model.id, body: esBody,pool:postPool};
