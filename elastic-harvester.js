@@ -806,6 +806,33 @@ ElasticHarvest.prototype.getEsQueryBody = function (predicates, nestedPredicates
             }
         }
     };
+    if (predicates.length) {
+        /**
+         * If filtered query has only filter defined then scoring is off,
+         * so create query_string query as sub part of filtered query to enable result scoring.
+         */
+        var mappedPredicates = _.reduce(predicates, function (result, item) {
+            /**
+             * Skip all predicates that are functions or contain special characters, i.e. "=" to filter out stuff like ?speed=gt=1
+             * which will go to filter anyway and does not influence scoring
+             */
+            if (!item.value || !(item.value.match instanceof Function) || item.value.match(/[^a-zA-Z0-9-_ ]/)) {
+                return result;
+            }
+            var value = item.value.replace(/[^a-zA-Z0-9-_ ]/g, '')
+            if (value) {
+                return result + (result ? ' AND ' : ' ') + '(' + item.key + ':' + value + ')';
+            } else {
+                return result;
+            }
+        }, '');
+        if (mappedPredicates.trim().length) {
+            /**
+             * Apply query_string query only if anything meaningful to such query is found in predicates
+             */
+            composedESQuery.query.filtered.query = {'query_string': {query: mappedPredicates}};
+        }
+    }
 
     allPredicateFragments.length>0 && (composedESQuery.query.filtered.filter=filter);
 
