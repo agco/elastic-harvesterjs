@@ -60,7 +60,7 @@ function configureApp(harvesterApp) {
             return equipmentSearch.initializeMapping(require("./equipment.mapping.js"));
         }).then(function (response) {
             console.log('Initializing ES mapping: ' + JSON.stringify(response));
-            return harvesterApp;
+            return [harvesterApp, peopleSearch];
         });
 }
 
@@ -80,9 +80,10 @@ function createAndConfigure() {
  */
 module.exports = function () {
     var that = this;
-    return createAndConfigure().then(function (app) {
+    return createAndConfigure().spread(function (app, peopleSearch) {
         app.listen(config.harvester.port);
         that.harvesterApp = app;
+        that.peopleSearch = peopleSearch;
         that.config = config;
         return app;
     });

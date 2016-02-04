@@ -30,6 +30,7 @@ function ElasticHarvest(harvest_app,es_url,index,type,options) {
     if(harvest_app){
         this.collectionLookup=getCollectionLookup(harvest_app,type);
         this.autoUpdateInput=autoUpdateInputGenerator.make(harvest_app,type);
+        this.invertedAutoUpdateInput = generateUpdateMap(this.autoUpdateInput);
         this.adapter = harvest_app.adapter;
         this.harvest_app = harvest_app;
     }else{
@@ -805,6 +806,33 @@ ElasticHarvest.prototype.getEsQueryBody = function (predicates, nestedPredicates
             }
         }
     };
+    if (predicates.length) {
+        /**
+         * If filtered query has only filter defined then scoring is off,
+         * so create query_string query as sub part of filtered query to enable result scoring.
+         */
+        var mappedPredicates = _.reduce(predicates, function (result, item) {
+            /**
+             * Skip all predicates that are functions or contain special characters, i.e. "=" to filter out stuff like ?speed=gt=1
+             * which will go to filter anyway and does not influence scoring
+             */
+            if (!item.value || !(item.value.match instanceof Function) || item.value.match(/[^a-zA-Z0-9-_ ]/)) {
+                return result;
+            }
+            var value = item.value.replace(/[^a-zA-Z0-9-_ ]/g, '')
+            if (value) {
+                return result + (result ? ' AND ' : ' ') + '(' + item.key + ':' + value + ')';
+            } else {
+                return result;
+            }
+        }, '');
+        if (mappedPredicates.trim().length) {
+            /**
+             * Apply query_string query only if anything meaningful to such query is found in predicates
+             */
+            composedESQuery.query.filtered.query = {'query_string': {query: mappedPredicates}};
+        }
+    }
 
     allPredicateFragments.length>0 && (composedESQuery.query.filtered.filter=filter);
 
@@ -1122,6 +1150,8 @@ ElasticHarvest.prototype.expandAndSync = function (models) {
 
 //sync: will push model to elastic search WITHOUT expanding any links.
 ElasticHarvest.prototype.sync = function(model){
+    model = _.cloneDeep(model);
+    model._lastUpdated = new Date().getTime();
     var esBody = JSON.stringify(model);
     var _this = this;
     var options = {uri: this.es_url + '/'+this.index+'/'+this.type+'/' + model.id, body: esBody,pool:postPool};
@@ -1332,19 +1362,11 @@ function getCollectionLookup(harvest_app,type){
                 }else if (_.isArray(property)){
                     if(_.isString(property[0])){
                         setValueAndGetLinkedSchemas(propertyName,property[0]);
-                    }else{
+                    }else if (_.isObject(property) && !property[0].baseUri){
                         setValueAndGetLinkedSchemas(propertyName,property[0].ref);
                     }
                 }else if (_.isObject(property) && !(property.baseUri)){
                     setValueAndGetLinkedSchemas(propertyName,property.ref);
-                } else if (_.isObject(property) && (property.baseUri)) {
-                    setValueAndGetLinkedSchemas(propertyName, {
-                        getRef: function () {
-                            return property.ref;
-                        }, getBaseUri: function () {
-                            return property.baseUri;
-                        }
-                    });
                 }
             }
         });
@@ -1352,6 +1374,42 @@ function getCollectionLookup(harvest_app,type){
 
     getLinkedSchemas(startingSchema);
     return retVal;
+}
+
+ElasticHarvest.prototype.syncIndex = function(resource, action, data) {
+    if (resource === this.type) {
+        return syncRootDocument(this, action, data);
+    } else {
+        return syncNestedDocument(this, resource, data);
+    }
+};
+
+function syncRootDocument(EH, action, data) {
+    //if root and update or insert call expandAndSync directly
+    //else root and delete call delete directly
+    var isDelete = action.replace(/\w/,'').toUpperCase() === "DELETE";
+    if (isDelete) return EH.delete(data.id);
+    return EH.expandAndSync.apply(EH, data);
+}
+
+function syncNestedDocument(EH, resource, data) {
+    //find the possible ES paths
+    //do a simple search for any
+    //sync all root docs
+    var singleResource = inflect.singularize(resource);
+    var updatePromises = _.map(EH.invertedAutoUpdateInput[singleResource], function pluckKeys(path) {
+        return EH.updateIndexForLinkedDocument(path, data);
+    });
+    return Promise.all(updatePromises);
+}
+
+function generateUpdateMap(autoUpdateInput) {
+    var auto = {};
+    _.forOwn(autoUpdateInput, function(value, key) {
+        if (!_.isArray(auto[value])) return auto[value] = [key];
+        return auto[value].push(key);
+    });
+    return auto;
 }
 
 module.exports = ElasticHarvest;
