@@ -1362,19 +1362,11 @@ function getCollectionLookup(harvest_app,type){
                 }else if (_.isArray(property)){
                     if(_.isString(property[0])){
                         setValueAndGetLinkedSchemas(propertyName,property[0]);
-                    }else{
+                    }else if (_.isObject(property) && !property[0].baseUri){
                         setValueAndGetLinkedSchemas(propertyName,property[0].ref);
                     }
                 }else if (_.isObject(property) && !(property.baseUri)){
                     setValueAndGetLinkedSchemas(propertyName,property.ref);
-                } else if (_.isObject(property) && (property.baseUri)) {
-                    setValueAndGetLinkedSchemas(propertyName, {
-                        getRef: function () {
-                            return property.ref;
-                        }, getBaseUri: function () {
-                            return property.baseUri;
-                        }
-                    });
                 }
             }
         });
