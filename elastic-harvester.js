@@ -408,7 +408,9 @@ function ElasticHarvest(harvest_app,es_url,index,type,options) {
         searchPromise.spread(function (response) {;
             var es_results;
             response && response.body && (es_results = JSON.parse(response.body));
-            if (es_results.error) {
+            if(!es_results) {
+              throw new Error("There was no response from the server.");
+            } else if (es_results.error) {
                 es_results.error && (error = es_results.error);
                 throw new Error("Your query was malformed, so it failed. Please check the api to make sure you're using it correctly.");
             } else {
