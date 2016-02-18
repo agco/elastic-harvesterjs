@@ -71,9 +71,27 @@ describe('aggregations', function () {
                 done();
             });
         });
-
-
     });
+
+    describe('extended stats', function () {
+        it('should be able to do sigmas & get correct std deviation in extended stats', function (done) {
+            request(config.baseUrl).get('/people/search?aggregations=appearance_ext_stats&appearance_ext_stats.type=extended_stats&appearance_ext_stats.property=appearances&appearance_ext_stats.sigma=1&limit=0').expect(200).end(function (err, res) {
+                should.not.exist(err);
+                var body = JSON.parse(res.text);
+                should.exist(body.meta.aggregations.appearance_ext_stats);
+                (body.meta.aggregations.appearance_ext_stats.count).should.equal(fixtures().people.length);
+                var stDeviation = standardDeviation(_.pluck(fixtures().people,"appearances"));
+                var avg = average(_.pluck(fixtures().people,"appearances"));
+                (body.meta.aggregations.appearance_ext_stats.std_deviation).should.equal(stDeviation);
+                (body.meta.aggregations.appearance_ext_stats.std_deviation_bounds.upper).should.equal(avg+stDeviation);
+                (body.meta.aggregations.appearance_ext_stats.std_deviation_bounds.lower).should.equal(avg-stDeviation);
+                done();
+            });
+        });
+        
+    });
+
+
     describe('top_hits', function () {
         it('should be possible to do a level 1 top_hits aggregation', function (done) {
             request(config.baseUrl).get('/people/search?aggregations=mostpopular&mostpopular.type=top_hits&mostpopular.sort=-appearances&mostpopular.limit=1').expect(200).end(function (err,
@@ -393,3 +411,27 @@ describe.skip('Sampling with filters', function() {
         });
     });
 });
+
+function standardDeviation(values){
+    var avg = average(values);
+
+    var squareDiffs = values.map(function(value){
+        var diff = value - avg;
+        var sqrDiff = diff * diff;
+        return sqrDiff;
+    });
+
+    var avgSquareDiff = average(squareDiffs);
+
+    var stdDev = Math.sqrt(avgSquareDiff);
+    return stdDev;
+}
+
+function average(data){
+    var sum = data.reduce(function(sum, value){
+        return sum + value;
+    }, 0);
+
+    var avg = sum / data.length;
+    return avg;
+}

@@ -93,7 +93,7 @@ function ElasticHarvest(harvest_app,es_url,index,type,options) {
         top_hits:["type","sort","limit","fields","include"],
         terms:["type","order","aggregations","property"],
         stats:["type","property"],
-        extended_stats:["type","property"]
+        extended_stats:["type","property","sigma"]
     };
 
     function setValueIfExists(obj,property,val,fn){
@@ -165,7 +165,7 @@ function ElasticHarvest(harvest_app,es_url,index,type,options) {
             setValueIfExists(aggregation,"limit",query[agg+".limit"],assertIsNotArray);
             setValueIfExists(aggregation,"fields",query[agg+".fields"],assertIsNotArray);
             setValueIfExists(aggregation,"include",query[agg+".include"],assertIsNotArray);
-
+            setValueIfExists(aggregation,"sigma",query[agg+".sigma"],assertIsNotArray);
 
             if( query[agg+".aggregations"]){//TODO: also, if type allows nesting (aka, type is a bucket aggregation)
                 aggregation.aggregations = getAggregationObjects(query,agg+".aggregations");
@@ -846,6 +846,7 @@ ElasticHarvest.prototype.getEsQueryBody = function (predicates, nestedPredicates
         shallowAggs[aggregationObject.type] =  {
             field: aggregationObject.property
         };
+
         _.each(extraShallowValues||[],function(extraShallowValue,extraShallowKey){
             shallowAggs[aggregationObject.type][extraShallowKey]=extraShallowValue;
         });
@@ -904,6 +905,8 @@ ElasticHarvest.prototype.getEsQueryBody = function (predicates, nestedPredicates
                 }
                 aggs[aggregationObject.name] = shallowAggs;
 
+            }else if (aggregationObject.type=="extended_stats" && aggregationObject.sigma){
+                isDeepAggregation = addInDefaultAggregationQuery(aggs,aggregationObject,{sigma:parseFloat(aggregationObject.sigma)});
             }else if (aggregationObject.type=="stats" || aggregationObject.type=="extended_stats"){
                 isDeepAggregation = addInDefaultAggregationQuery(aggs,aggregationObject);
             }
