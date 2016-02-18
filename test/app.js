@@ -6,13 +6,16 @@ var Joi = require('joi');
 var config = require('./config.js');
 
 function configureApp(harvesterApp) {
-    var peopleSearch, equipmentSearch;
+    var peopleSearch, equipmentSearch, warriorSearch;
     //This circumvents a dependency issue between harvest and elastic-harvest.
     harvesterApp.router.get('/people/search', function () {
         peopleSearch.route.apply(peopleSearch, arguments);
     });
     harvesterApp.router.get('/equipment/search', function () {
         equipmentSearch.route.apply(equipmentSearch, arguments);
+    });
+    harvesterApp.router.get('/warriors/search', function () {
+        warriorSearch.route.apply(warriorSearch, arguments);
     });
 
     var options = harvesterApp.options;
@@ -41,6 +44,11 @@ function configureApp(harvesterApp) {
             links: {
                 dealer: { ref: 'dealer', baseUri: 'http://localhost:' + (config.harvester.port + 1) }
             }
+        }).resource('warrior', {
+            name: Joi.string(),
+            links: {
+                weapon: 'equipment'
+            }
         });
 
     peopleSearch = new ElasticHarvest(harvesterApp, options.es_url, options.es_index, "people");
@@ -53,15 +61,23 @@ function configureApp(harvesterApp) {
     equipmentSearch.enableAutoSync('equipment');
     equipmentSearch.enableAutoIndexUpdate();
 
+    warriorSearch = new ElasticHarvest(harvesterApp, options.es_url, options.es_index, 'warriors');
+    warriorSearch.setHarvestRoute(harvesterApp.createdResources['warrior']);
+    warriorSearch.enableAutoSync('warrior');
+    warriorSearch.enableAutoIndexUpdate();
+
     return peopleSearch.deleteIndex().then(function () {
         return peopleSearch.initializeMapping(require("./people.mapping.js"));
     }).then(function (response) {
-            console.log('Initializing ES mapping: ' + JSON.stringify(response));
-            return equipmentSearch.initializeMapping(require("./equipment.mapping.js"));
-        }).then(function (response) {
-            console.log('Initializing ES mapping: ' + JSON.stringify(response));
-            return [harvesterApp, peopleSearch];
-        });
+        console.log('Initializing ES mapping: ' + JSON.stringify(response));
+        return equipmentSearch.initializeMapping(require("./equipment.mapping.js"));
+    }).then(function (response) {
+        console.log('Initializing ES mapping: ' + JSON.stringify(response));
+        return warriorSearch.initializeMapping(require("./warriors.mapping.js"));
+    }).then(function (response) {
+        console.log('Initializing ES mapping: ' + JSON.stringify(response));
+        return [harvesterApp, peopleSearch];
+    });
 }
 
 function createAndConfigure() {

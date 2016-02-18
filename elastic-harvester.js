@@ -1232,6 +1232,7 @@ ElasticHarvest.prototype.expandEntity = function (entity,depth,currentPath){
             }
         } else {
             console.warn("[Elastic-Harvest] Failed to find the name of the collection with " + key + " in it.");
+            expandWithResult(entity, key, {id: val && val.id || val})
         }
     },this);
 

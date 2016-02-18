@@ -2,6 +2,7 @@ var _ = require('lodash');
 var Joi = require('joi');
 var harvester = require('harvesterjs');
 var should = require('should');
+var Promise = require('bluebird');
 
 var request = require('supertest');
 var seeder = require('./seeder.js');
@@ -12,7 +13,10 @@ describe('Syncing external links', function () {
     describe('when remote API is down', function () {
         before(function () {
             this.timeout(config.esIndexWaitTime + 1000);
-            return seeder(this.harvesterApp).dropCollectionsAndSeed('equipment');
+            var harvesterApp = this.harvesterApp;
+            return Promise.map(['equipment', 'warriors', 'people'], function (key) {
+                return seeder(harvesterApp).dropCollectionsAndSeed(key)
+            });
         });
 
         it('should allow searching on id from linked entity from remote API', function (done) {
@@ -24,6 +28,16 @@ describe('Syncing external links', function () {
                     body.equipment[0].links.should.have.property('dealer', 'd767ffc1-0ab6-11e5-a3f4-470467a3b6a8');
                     done();
                 });
+        });
+        it('should allow searching on id from nested linked entity from remote API', function (done) {
+            request(config.baseUrl).get('/warriors/search?links.weapon.dealer.id=d767ffc1-0ab6-11e5-a3f4-470467a3b6a8')
+                .expect(200).end(function (err, res) {
+                should.not.exist(err);
+                var body = JSON.parse(res.text);
+                body.warriors.length.should.equal(1);
+                body.warriors[0].links.should.have.property('weapon', 'b767ffc1-0ab6-11e5-a3f4-470467a3b6a8');
+                done();
+            });
         });
         it.skip('should allow including remote links', function (done) {
             /**
