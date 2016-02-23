@@ -93,7 +93,8 @@ function ElasticHarvest(harvest_app,es_url,index,type,options) {
         top_hits:["type","sort","limit","fields","include"],
         terms:["type","order","aggregations","property"],
         stats:["type","property"],
-        extended_stats:["type","property","sigma"]
+        extended_stats:["type","property","sigma"],
+        date_histogram:["type","property","interval","timezone","offset"]
     };
 
     function setValueIfExists(obj,property,val,fn){
@@ -166,6 +167,9 @@ function ElasticHarvest(harvest_app,es_url,index,type,options) {
             setValueIfExists(aggregation,"fields",query[agg+".fields"],assertIsNotArray);
             setValueIfExists(aggregation,"include",query[agg+".include"],assertIsNotArray);
             setValueIfExists(aggregation,"sigma",query[agg+".sigma"],assertIsNotArray);
+            setValueIfExists(aggregation,"interval",query[agg+".interval"],assertIsNotArray);
+            setValueIfExists(aggregation,"timezone",query[agg+".timezone"],assertIsNotArray);
+            setValueIfExists(aggregation,"offset",query[agg+".offset"],assertIsNotArray);
 
             if( query[agg+".aggregations"]){//TODO: also, if type allows nesting (aka, type is a bucket aggregation)
                 aggregation.aggregations = getAggregationObjects(query,agg+".aggregations");
@@ -438,7 +442,8 @@ var requiredAggOptions = {
     top_hits:["type"],
     terms:["type","property"],
     stats:["type","property"],
-    extended_stats:["type","property"]
+    extended_stats:["type","property"],
+    date_histogram:["type","property","interval"]
 }
 
 function assertAggregationObjectHasRequiredOptions(aggregationObject){
@@ -909,6 +914,11 @@ ElasticHarvest.prototype.getEsQueryBody = function (predicates, nestedPredicates
                 isDeepAggregation = addInDefaultAggregationQuery(aggs,aggregationObject,{sigma:parseFloat(aggregationObject.sigma)});
             }else if (aggregationObject.type=="stats" || aggregationObject.type=="extended_stats"){
                 isDeepAggregation = addInDefaultAggregationQuery(aggs,aggregationObject);
+            }else if (aggregationObject.type=="date_histogram"){
+                var extraOptions = {interval:aggregationObject.interval};
+                aggregationObject.timezone && (extraOptions["time_zone"]=aggregationObject.timezone);
+                aggregationObject.offset && (extraOptions["offset"]=aggregationObject.offset);
+                isDeepAggregation = addInDefaultAggregationQuery(aggs,aggregationObject,extraOptions);
             }
 
             if(aggregationObject.aggregations){
