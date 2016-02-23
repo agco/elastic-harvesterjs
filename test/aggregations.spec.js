@@ -73,8 +73,43 @@ describe('aggregations', function () {
         });
     });
 
+    describe('date histogram', function () {
+
+        it('should be able to do generate histogram buckets for an interval(months)', function (done) {
+            request(config.baseUrl).get('/people/search?aggregations=dob_histo&dob_histo.type=date_histogram&dob_histo.property=dateOfBirth&dob_histo.interval=month&limit=0').expect(200).end(function (err, res) {
+                should.not.exist(err);
+                var body = JSON.parse(res.text);
+                should.exist(body.meta.aggregations.dob_histo);
+
+                (body.meta.aggregations.dob_histo.length).should.equal(fixtures().people.length);
+                _.each(body.meta.aggregations.dob_histo,function(bucket){
+                    should.exist(bucket.key);
+                    should.exist(bucket.key_as_string);
+                    should.exist(bucket.count);
+                });
+                done();
+            });
+        });
+
+        it('should be able to put histogram buckets into correct timezones', function (done) {
+            request(config.baseUrl).get('/people/search?aggregations=dob_histo&dob_histo.type=date_histogram&dob_histo.property=dateOfBirth&dob_histo.interval=month&dob_histo.timezone=-3:00&limit=0').expect(200).end(function (err, res) {
+                var timezoneShiftedBody = JSON.parse(res.text);
+                should.exist(timezoneShiftedBody.meta.aggregations.dob_histo);
+                (timezoneShiftedBody.meta.aggregations.dob_histo.length).should.equal(fixtures().people.length);
+                _.each(timezoneShiftedBody.meta.aggregations.dob_histo,function(bucket){
+                    should.exist(bucket.key);
+                    should.exist(bucket.key_as_string);
+                    should.exist(bucket.count);
+                });
+                done();
+
+            });
+        });
+
+    });
+
     describe('extended stats', function () {
-        //TODO: Skipping because it's not working on travis but works in prod,dev & test. Suspect a ES version issue - 
+        //TODO: Skipping because it's not working on travis but works in prod,dev & test. Suspect a ES version issue -
         it.skip('should be able to do sigmas & get correct std deviation in extended stats', function (done) {
             request(config.baseUrl).get('/people/search?aggregations=appearance_ext_stats&appearance_ext_stats.type=extended_stats&appearance_ext_stats.property=appearances&appearance_ext_stats.sigma=1&limit=0').expect(200).end(function (err, res) {
                 should.not.exist(err);
@@ -89,7 +124,6 @@ describe('aggregations', function () {
                 done();
             });
         });
-        
     });
 
 

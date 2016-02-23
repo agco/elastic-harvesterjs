@@ -23,6 +23,7 @@ function configureApp(harvesterApp) {
     harvesterApp.resource('person', {
         name: Joi.string(),
         appearances: Joi.number(),
+        dateOfBirth: Joi.date(),
         links: {
             pets: ['pet'],
             soulmate: {ref: 'person', inverse: 'soulmate'},
