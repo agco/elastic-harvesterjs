@@ -44,6 +44,20 @@ describe('aggregations', function () {
             });
     });
 
+    describe('range', function () {
+        it('should be able to do range aggregations, specify adhoc ranges & get back corresponding buckets', function (done) {
+            request(config.baseUrl).get('/people/search?aggregations=appearance_range&appearance_range.type=range&appearance_range.property=appearances&appearance_range.ranges=*-99,100-199,500-599,600-*&limit=0').expect(200).end(function (err, res) {
+                should.not.exist(err);
+                var body = JSON.parse(res.text);
+                console.log(JSON.stringify(body));
+                should.exist(body.meta.aggregations.appearance_range);
+                (body.meta.aggregations.appearance_range.length).should.equal(4);//because there are 4 ranges specified.
+                done();
+            });
+        });
+
+    });
+
     describe('terms', function () {
         it('should keep simple backwards compatibility with original terms aggregation', function (done) {
             request(config.baseUrl).get('/people/search?aggregations.fields=name').expect(200).end(function (err, res) {

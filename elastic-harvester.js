@@ -84,7 +84,6 @@ function ElasticHarvest(harvest_app,es_url,index,type,options) {
             });
         }
         var aggregationObjects = getAggregationObjects(req.query);
-
         var esQuery = _this.getEsQueryBody(predicates, nestedPredicates, geoPredicate,aggregationObjects, sortParams);
         esSearch(esQuery,aggregationObjects,req,res,next);
     };
@@ -94,7 +93,8 @@ function ElasticHarvest(harvest_app,es_url,index,type,options) {
         terms:["type","order","aggregations","property"],
         stats:["type","property"],
         extended_stats:["type","property","sigma"],
-        date_histogram:["type","property","interval","timezone","offset"]
+        date_histogram:["type","property","interval","timezone","offset"],
+        range:["type","property","ranges"]
     };
 
     function setValueIfExists(obj,property,val,fn){
@@ -170,6 +170,7 @@ function ElasticHarvest(harvest_app,es_url,index,type,options) {
             setValueIfExists(aggregation,"interval",query[agg+".interval"],assertIsNotArray);
             setValueIfExists(aggregation,"timezone",query[agg+".timezone"],assertIsNotArray);
             setValueIfExists(aggregation,"offset",query[agg+".offset"],assertIsNotArray);
+            setValueIfExists(aggregation,"ranges",query[agg+".ranges"],assertIsNotArray);
 
             if( query[agg+".aggregations"]){//TODO: also, if type allows nesting (aka, type is a bucket aggregation)
                 aggregation.aggregations = getAggregationObjects(query,agg+".aggregations");
@@ -443,7 +444,8 @@ var requiredAggOptions = {
     terms:["type","property"],
     stats:["type","property"],
     extended_stats:["type","property"],
-    date_histogram:["type","property","interval"]
+    date_histogram:["type","property","interval"],
+    range:["type","property","ranges"]
 }
 
 function assertAggregationObjectHasRequiredOptions(aggregationObject){
@@ -919,6 +921,31 @@ ElasticHarvest.prototype.getEsQueryBody = function (predicates, nestedPredicates
                 aggregationObject.timezone && (extraOptions["time_zone"]=aggregationObject.timezone);
                 aggregationObject.offset && (extraOptions["offset"]=aggregationObject.offset);
                 isDeepAggregation = addInDefaultAggregationQuery(aggs,aggregationObject,extraOptions);
+            }else if (aggregationObject.type=="range"){
+                var ranges = aggregationObject.ranges.split(',');
+                var rangeOptions = {ranges:[]};
+                _.each(ranges,function (range) {
+
+                    //Extracts from and to from strings like "*-50" or "44-76"
+                    var rangeObject = {};
+                    var dashLocation = range.indexOf("-");
+                    //validates that this dashLocation is appropriate
+                    if(dashLocation==0){
+                        throw new Error("The range aggregation requires that your "+range+" range have a 'from' value. To remove the lower limit, use an * as your 'from' value. e.g. *-44");
+                    } else if(dashLocation==range.length-1) {
+                        throw new Error("The range aggregation requires that your "+range+" range have a 'to' value. To remove the upper limit, use an * as your 'to' value. e.g. 0-*");
+                    } else if (dashLocation==-1){
+                        throw new Error("The range aggregation requires that your "+range+" range have a '-' in it. e.g. 0-50");
+                    }
+                    rangeObject.from = range.substring(0,dashLocation);
+                    rangeObject.to = range.substring(dashLocation+1,range.length);
+                    (rangeObject.from == "*") && (delete rangeObject.from);
+                    (rangeObject.to == "*") && (delete rangeObject.to);
+
+                    rangeOptions.ranges.push(rangeObject);
+                });
+
+                isDeepAggregation = addInDefaultAggregationQuery(aggs,aggregationObject,rangeOptions);
             }
 
             if(aggregationObject.aggregations){
