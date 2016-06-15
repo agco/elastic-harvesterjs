@@ -919,6 +919,7 @@ ElasticHarvest.prototype.getEsQueryBody = function (predicates, nestedPredicates
             }else if (aggregationObject.type=="date_histogram"){
                 var extraOptions = {interval:aggregationObject.interval};
                 aggregationObject.timezone && (extraOptions["time_zone"]=aggregationObject.timezone);
+                extraOptions["min_doc_count"]=1;
                 aggregationObject.offset && (extraOptions["offset"]=aggregationObject.offset);
                 isDeepAggregation = addInDefaultAggregationQuery(aggs,aggregationObject,extraOptions);
             }else if (aggregationObject.type=="range"){
@@ -1338,7 +1339,7 @@ ElasticHarvest.prototype.deleteIndex=function() {
     return requestAsync({uri:url, method: 'DELETE', body:""}).then(function(response){
         var body = JSON.parse(response[1]);
         if(body.error){
-            if(_s.contains(body.error,"IndexMissingException")){
+            if(_s.contains(body.error,"IndexMissingException") || (body.error.type && body.error.type == "index_not_found_exception")){
                 console.warn("[Elastic-Harvest] Tried to delete the index, but it was already gone!");
                 return body;
             }else{
@@ -1362,7 +1363,7 @@ ElasticHarvest.prototype.initializeMapping=function(mapping,shouldNotRetry){
     return requestAsync({uri:es_resource, method: 'PUT', body:reqBody}).then(function(response){
         var body = JSON.parse(response[1]);
         if(body.error){
-            if(_s.contains(body.error,"IndexMissingException") && !shouldNotRetry){
+            if(((body.error.type && body.error.type=="index_not_found_exception") || _s.contains(body.error,"IndexMissingException")) && !shouldNotRetry){
                 console.warn("[Elastic-Harvest] Looks like we need to create an index - I'll handle that automatically for you & will retry adding the mapping afterward.");
                 return _this.initializeIndex().then(function(){return _this.initializeMapping(mapping,true)});
             }else{
