@@ -106,7 +106,7 @@ describe('aggregations', function () {
         });
 
         it('should be able to put histogram buckets into correct timezones', function (done) {
-            request(config.baseUrl).get('/people/search?aggregations=dob_histo&dob_histo.type=date_histogram&dob_histo.property=dateOfBirth&dob_histo.interval=month&dob_histo.timezone=-3:00&limit=0').expect(200).end(function (err, res) {
+            request(config.baseUrl).get('/people/search?aggregations=dob_histo&dob_histo.type=date_histogram&dob_histo.property=dateOfBirth&dob_histo.interval=month&dob_histo.timezone=-03:00&limit=0').expect(200).end(function (err, res) {
                 var timezoneShiftedBody = JSON.parse(res.text);
                 should.exist(timezoneShiftedBody.meta.aggregations.dob_histo);
                 (timezoneShiftedBody.meta.aggregations.dob_histo.length).should.equal(fixtures().people.length);
