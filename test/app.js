@@ -5,6 +5,10 @@ var Joi = require('joi');
 
 var config = require('./config.js');
 
+
+var personRoutingKey = 'name'  // used in the customRouting.spec.js tests
+
+
 function configureApp(harvesterApp) {
     var peopleSearch, equipmentSearch, warriorSearch;
     //This circumvents a dependency issue between harvest and elastic-harvest.
@@ -56,6 +60,7 @@ function configureApp(harvesterApp) {
     peopleSearch.setHarvestRoute(harvesterApp.createdResources['person']);
     peopleSearch.enableAutoSync("person");
     peopleSearch.enableAutoIndexUpdate();
+    peopleSearch.setCustomRouting(personRoutingKey)
 
     equipmentSearch = new ElasticHarvest(harvesterApp, options.es_url, options.es_index, 'equipment');
     equipmentSearch.setHarvestRoute(harvesterApp.createdResources['equipment']);
@@ -97,6 +102,7 @@ function createAndConfigure() {
  */
 module.exports = function () {
     var that = this;
+    that.personRoutingKey = personRoutingKey
     return createAndConfigure().spread(function (app, peopleSearch) {
         app.listen(config.harvester.port);
         that.harvesterApp = app;
