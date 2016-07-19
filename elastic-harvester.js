@@ -400,7 +400,12 @@ function ElasticHarvest(harvest_app,es_url,index,type,options) {
         query['include'] && params.push("include="+ query['include']);
         query['limit'] && params.push("size="+ query['limit']);
         query['offset'] && params.push("from="+ query['offset']);
-
+        
+        // FIXME: customRouting logic needed
+        // about here we probably need to add some routing if we can.
+        // However, I don't know how to know if customRouting is used and if so, where to get the value from
+        var routingValue = (false) ? 'fetch some stuff'  : undefined  // FIXME: where to get the routing value from
+        routingValue !== undefined && params.push('routing=' + routingValue)
         var queryStr = '?'+params.join('&');
         var es_resource = es_url + '/' + index + '/' + type + '/_search' + queryStr;
 
@@ -508,6 +513,13 @@ function getResponseArrayFromESResults(results,fields){
         })
     }
     return retVal;
+}
+
+
+ElasticHarvest.prototype.setCustomRouting = function (customRoutingPropertyName) {
+    this.options = this.options || {}
+    this.options.customRouting = customRoutingPropertyName
+    return this;  // so we can chain it
 }
 
 
@@ -1088,8 +1100,12 @@ ElasticHarvest.prototype.simpleSearch = function (field,value) {
     var _this = this;
     var params=[];
     params.push("size="+DEFAULT_SIMPLE_SEARCH_LIMIT);
+    var routingKey = this.options.customRouting
+    var routingValue = (routingKey && routingKey === field) ? value : ''
+    if (routingKey && routingValue) {
+        params.push('routing=' + routingValue)
+    }
     var queryStr = '?'+params.join('&');
-
     var es_resource = this.es_url + '/'+this.index+'/'+this.type+'/_search'+queryStr;
     return requestAsync({uri:es_resource, method: 'GET', body: reqBody}).then(function(response) {
         var es_results = JSON.parse(response[1]);
@@ -1196,7 +1212,12 @@ ElasticHarvest.prototype.sync = function(model){
     model._lastUpdated = new Date().getTime();
     var esBody = JSON.stringify(model);
     var _this = this;
-    var options = {uri: this.es_url + '/'+this.index+'/'+this.type+'/' + model.id, body: esBody,pool:postPool};
+    var routing = getRouting(this.options)
+    var options = {uri: this.es_url + '/'+this.index+'/'+this.type+'/' + model.id + routing, body: esBody,pool:postPool};
+
+    function getRouting(options) {
+        return options.customRouting ? '?routing=' + model[options.customRouting] : ''
+    }
 
     return new Promise(function (resolve, reject) {
             request.put(options, function (error, response, body) {
