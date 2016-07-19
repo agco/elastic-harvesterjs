@@ -1,5 +1,8 @@
 module.exports={
     "people": {
+        "_routing": {
+            "required": true
+        },
         "properties": {
             "id": {
                 "type": "string",
