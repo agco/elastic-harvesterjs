@@ -394,18 +394,14 @@ function ElasticHarvest(harvest_app,es_url,index,type,options) {
 
     function esSearch(esQuery,aggregationObjects,req,res) {
         var query = req.query;
-
+        var customRoutingKey = _this.options.customRouting
         var params=[];
 
+        customRoutingKey && query[customRoutingKey] && params.push('routing=' + query[customRoutingKey])
         query['include'] && params.push("include="+ query['include']);
         query['limit'] && params.push("size="+ query['limit']);
         query['offset'] && params.push("from="+ query['offset']);
-        
-        // FIXME: customRouting logic needed
-        // about here we probably need to add some routing if we can.
-        // However, I don't know how to know if customRouting is used and if so, where to get the value from
-        var routingValue = (false) ? 'fetch some stuff'  : undefined  // FIXME: where to get the routing value from
-        routingValue !== undefined && params.push('routing=' + routingValue)
+
         var queryStr = '?'+params.join('&');
         var es_resource = es_url + '/' + index + '/' + type + '/_search' + queryStr;
 

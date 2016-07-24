@@ -55,6 +55,14 @@ describe('Custom Routing', function () {
         config = this.config
         options = config.harvester.options
         personCustomRoutingPropertyName = this.personCustomRoutingPropertyName
+        this.createOptions = function (uri) {
+            // helper function to create $http options object when given a uri
+            return {
+                url: config.baseUrl + uri,
+                json: true,
+                error: false
+            }
+        }
     })
 
     afterEach(function () {
@@ -77,6 +85,7 @@ describe('Custom Routing', function () {
 
     })
 
+    // TODO: wrap the below test in a discribe
     it('should send documents to different shards', function () {
         // plan is to post a document, which should get indexed
         // then we can use the ElasticSearch API to get the shard our key would map to and the documents listed per
@@ -134,31 +143,53 @@ describe('Custom Routing', function () {
             })
     })
 
-    describe('SimpleSearch', function () {
+    describe('Searching With Custom Routing', function () {
         var config
-        
+
         beforeEach(function seedPeople() {
             config = this.config
-            this.timeout(config.esIndexWaitTime + 4000)
-            return seeder(this.harvesterApp).dropCollectionsAndSeed('people')
+            this.timeout(config.esIndexWaitTime + 6000)
+            return seeder(this.harvesterApp).dropCollectionsAndSeed('pets', 'people', 'equipment')
                 .then(function () {
-                    return Promise.delay(config.esIndexWaitTime)
+                    return Promise.delay(config.esIndexWaitTime + 2000)
                 })
         })
-        
-        it('should query fewer shards', function () {
-            var options = {
-                url: config.baseUrl + '/people/search?name=Dilbert',
-                json: true,
-                error: false
-            }
 
-            return $http.get(options)
+        // TODO: check that all code that adds routing while searching is being tested in this code. Perpahs simpleSearch doesn't get tested here.
+        // TODO: test '/people/search?appearances=2000' an example where routing is used enabled but not included in search terms
+
+        it('should add one custom routing value WHEN customRouting is enabled', function () {
+            return $http.get(this.createOptions('/people/search?name=Dilbert'))
                 .spread(function (res, body) {
                     res.statusCode.should.equal(200)
                     body.people.should.be.an.Array
                     body.people.length.should.equal(1)
                     body.people[0].should.have.property('name').and.equal('Dilbert')
+                })
+                // TODO: SP check url sent to elasticSearch for the routing parameters, but also send the actual request too. This may require two separate requests or just one request where we intercept the request
+        })
+
+        it('should add many custom routing values WHEN custumRouting is enabled', function () {
+            return $http.get(this.createOptions('/people/search?name=Dilbert,Wally'))
+                .spread(function (res, body) {
+                    res.statusCode.should.equal(200)
+                    body.people.should.be.an.Array
+                    body.people.length.should.equal(2)
+                    _.find(body.people, { name: 'Wally'}).should.be.an.Object
+                    _.find(body.people, { name: 'Dilbert'}).should.be.an.Object
+                })
+        })
+
+        it('should still search WHEN customRouting is NOT enabled', function () {
+            var searchKey = 'name'
+            var searchTerm = 'Dilbot'
+
+            return $http.get(this.createOptions('/equipment/search?' + searchKey + '=' + searchTerm))
+                .spread(function (res, body) {
+                    res.statusCode.should.equal(200)
+                    body.equipment.should.be.an.Array
+                    body.equipment.length.should.equal(1)
+                    body.equipment[0].should.have.property(searchKey).and.equal(searchTerm)
                 })
         })
     })
