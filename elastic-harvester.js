@@ -394,10 +394,10 @@ function ElasticHarvest(harvest_app,es_url,index,type,options) {
 
     function esSearch(esQuery,aggregationObjects,req,res) {
         var query = req.query;
-        var customRoutingKey = _this.options.customRouting
+        var customRoutingPath = _this.options.pathToCustomRoutingKey
         var params=[];
 
-        customRoutingKey && query[customRoutingKey] && params.push('routing=' + query[customRoutingKey])
+        customRoutingPath && query[customRoutingPath] && params.push('routing=' + query[customRoutingPath])
         query['include'] && params.push("include="+ query['include']);
         query['limit'] && params.push("size="+ query['limit']);
         query['offset'] && params.push("from="+ query['offset']);
@@ -512,9 +512,9 @@ function getResponseArrayFromESResults(results,fields){
 }
 
 
-ElasticHarvest.prototype.setCustomRouting = function (customRoutingPropertyName) {
+ElasticHarvest.prototype.setPathToCustomRoutingKey = function (pathToCustomRoutingKey) {
     this.options = this.options || {}
-    this.options.customRouting = customRoutingPropertyName
+    this.options.pathToCustomRoutingKey = pathToCustomRoutingKey
     return this;  // so we can chain it
 }
 
@@ -1096,11 +1096,6 @@ ElasticHarvest.prototype.simpleSearch = function (field,value) {
     var _this = this;
     var params=[];
     params.push("size="+DEFAULT_SIMPLE_SEARCH_LIMIT);
-    var routingKey = this.options.customRouting
-    var routingValue = (routingKey && routingKey === field) ? value : ''
-    if (routingKey && routingValue) {
-        params.push('routing=' + routingValue)
-    }
     var queryStr = '?'+params.join('&');
     var es_resource = this.es_url + '/'+this.index+'/'+this.type+'/_search'+queryStr;
     return requestAsync({uri:es_resource, method: 'GET', body: reqBody}).then(function(response) {
@@ -1212,7 +1207,7 @@ ElasticHarvest.prototype.sync = function(model){
     var options = {uri: this.es_url + '/'+this.index+'/'+this.type+'/' + model.id + routing, body: esBody,pool:postPool};
 
     function getRouting(options) {
-        return options.customRouting ? '?routing=' + model[options.customRouting] : ''
+        return options.pathToCustomRoutingKey ? '?routing=' + model[options.pathToCustomRoutingKey] : ''
     }
 
     return new Promise(function (resolve, reject) {

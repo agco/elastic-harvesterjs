@@ -47,14 +47,14 @@ describe('Custom Routing', function () {
     var seederInstance
     var config
     var options
-    var personCustomRoutingPropertyName
+    var personCustomRoutingKeyPath
 
     beforeEach(function () {
         seederInstance = seeder(this.harvesterApp)
         seederInstance.dropCollections(collection)
         config = this.config
         options = config.harvester.options
-        personCustomRoutingPropertyName = this.personCustomRoutingPropertyName
+        personCustomRoutingKeyPath = this.personCustomRoutingKeyPath
         this.createOptions = function (uri) {
             // helper function to create $http options object when given a uri
             return {
@@ -68,19 +68,19 @@ describe('Custom Routing', function () {
     afterEach(function () {
     })
 
-    describe('The setCustomRouting function', function () {
+    describe('The setPathToCustomRoutingKey function', function () {
 
         it('should be a function of ElasticHarvest', function () {
             var testSearch = new ElasticHarvest(this.app, options.es_url, options.es_index, 'test')
 
-            testSearch.should.have.property('setCustomRouting').and.be.an.Function
+            testSearch.should.have.property('setPathToCustomRoutingKey').and.be.an.Function
         })
 
         it('should add property to options', function () {
             var testSearch = new ElasticHarvest(this.app, options.es_url, options.es_index, 'test')
 
-            testSearch.setCustomRouting('gender')
-            testSearch.options.customRouting.should.equal('gender')
+            testSearch.setPathToCustomRoutingKey('gender')
+            testSearch.options.pathToCustomRoutingKey.should.equal('gender')
         })
 
     })
@@ -96,7 +96,7 @@ describe('Custom Routing', function () {
                 appearances: 893,
                 dateOfBirth: '1992-08-25T13:22:38.000Z'
             }
-            var routingKey = this.personRoutingKey
+            var routingKey = this.personCustomRoutingKeyPath
 
             return seederInstance.post(collection, [newPerson])
                 .then(function (results) {
@@ -156,7 +156,7 @@ describe('Custom Routing', function () {
                 })
         })
 
-        // TODO: check that all code that adds routing while searching is being tested in this code. Perpahs simpleSearch doesn't get tested here.
+        // TODO: Doesn't appear that customRouting in simpleSearch is being exercised here.
         it('should still search WHEN customRouting is enabled BUT not given as a search predicate', function () {
             return $http.get(this.createOptions('/people/search?appearances=le=2000'))
                 .spread(function (res, body) {
@@ -175,7 +175,6 @@ describe('Custom Routing', function () {
                     body.people.length.should.equal(1)
                     body.people[0].should.have.property('name').and.equal('Dilbert')
                 })
-                // TODO: SP check url sent to elasticSearch for the routing parameters, but also send the actual request too. This may require two separate requests or just one request where we intercept the request
         })
 
         it('should add many custom routing values WHEN custumRouting is enabled', function () {
