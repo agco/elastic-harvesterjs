@@ -6,15 +6,15 @@
 
 
 // dependencies
-const _ = require('lodash')
-const $http = require('http-as-promised')
-const request = require('request')
-const seeder = require('./seeder')
-const Promise = require('bluebird')
-const ElasticHarvest = require('../elastic-harvester')
-const Utils = require('../Util')
+var _ = require('lodash')
+var $http = require('http-as-promised')
+var request = require('request')
+var seeder = require('./seeder')
+var Promise = require('bluebird')
+var ElasticHarvest = require('../elastic-harvester')
+var Utils = require('../Util')
 
-const syncWaitTime = 1000  // milliseconds
+var syncWaitTime = 1000  // milliseconds
 
 
 function queryElasticSearch(config, command) {
