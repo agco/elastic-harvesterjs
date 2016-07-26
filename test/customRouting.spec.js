@@ -109,9 +109,6 @@ describe('Custom Routing', function () {
                    var searchShard = searchedShards.shards[0][0].shard
                    var docsCount
 
-                   console.log('searchedShard:', searchShard)
-                   console.log('docsPerShard:', shardStats)
-
                    _.forEach(shardStats.split('\n'), function (row) {
                        var values = row.split(' ')
                        var shard = parseInt(values[0], 10)
