@@ -7,6 +7,7 @@ var config = require('./config.js');
 
 
 var personCustomRoutingKeyPath = 'name'  // used in the customRouting.spec.js tests
+var warriorCustomRoutingKeyPath = 'links.weapon.id'  // used in the customRouting.spec.js tests
 
 
 function configureApp(harvesterApp) {
@@ -71,6 +72,7 @@ function configureApp(harvesterApp) {
     warriorSearch.setHarvestRoute(harvesterApp.createdResources['warrior']);
     warriorSearch.enableAutoSync('warrior');
     warriorSearch.enableAutoIndexUpdate();
+    warriorSearch.setPathToCustomRoutingKey(warriorCustomRoutingKeyPath)
 
     return peopleSearch.deleteIndex().then(function () {
         return peopleSearch.initializeMapping(require("./people.mapping.js"));
@@ -103,6 +105,7 @@ function createAndConfigure() {
 module.exports = function () {
     var that = this;
     that.personCustomRoutingKeyPath = personCustomRoutingKeyPath
+    that.warriorCustomRoutingKeyPath = warriorCustomRoutingKeyPath
     return createAndConfigure().spread(function (app, peopleSearch) {
         app.listen(config.harvester.port);
         that.harvesterApp = app;

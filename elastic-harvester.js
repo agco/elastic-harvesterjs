@@ -392,12 +392,50 @@ function ElasticHarvest(harvest_app,es_url,index,type,options) {
             });
     }
 
+    /**
+     * Creates a custom routing query string parameter when provided with the pathToCustomRoutingKey and a map of query
+     * string parameters, it will create a custom routing query string parameter, that can be sent to elasticSearch. It
+     * return an empty string if it is unable to create one.
+     *
+     * It will validate:
+     *   * that custom routing is turned on for this type.
+     *   * the value to be used for custom routing is a string
+     *   * the string doesn't end with wildcards
+     *   * the string doesnt' have operators like ge, gt, le or lt
+     *
+     * @param pathToCustomRoutingKey  string, the path to the custom routing key
+     * @param query                   map, of query strings from the request
+     * @returns string                custom routing query string or '' if N/A
+     */
+    function createCustomRoutingQueryString(pathToCustomRoutingKey, query) {
+        var invalidRegexList = [ /^ge=/, /^gt=/, /^ge=/, /^lt=/, /\*$/ ]  // array of invalid regex
+        var customRoutingValue
+
+        if (!pathToCustomRoutingKey) return ''  // customRouting is not enabled for this type
+
+        customRoutingValue = query[pathToCustomRoutingKey]  // fetch the value
+
+        // filters like [ 'gt: '10', lt: '20' ] are not valid customRouting values but may show up
+        if (typeof customRoutingValue !== 'string') return ''
+
+        // check for range and wildcard filters
+        _.forEach(invalidRegexList, function (invalidRegex) {
+            // if our value matches one of these regex, it's probably not the value we should be hashing for customRouting
+            if (invalidRegex.test(customRoutingValue)) {
+                customRoutingValue = ''
+                return false
+            }
+        })
+
+        return customRoutingValue ? 'routing=' + customRoutingValue : ''
+    }
+
     function esSearch(esQuery,aggregationObjects,req,res) {
         var query = req.query;
-        var customRoutingPath = _this.options.pathToCustomRoutingKey
+        var customRoutingQuery = createCustomRoutingQueryString(_this.pathToCustomRoutingKey, query)
         var params=[];
 
-        customRoutingPath && query[customRoutingPath] && params.push('routing=' + query[customRoutingPath])
+        customRoutingQuery && params.push(customRoutingQuery)
         query['include'] && params.push("include="+ query['include']);
         query['limit'] && params.push("size="+ query['limit']);
         query['offset'] && params.push("from="+ query['offset']);
@@ -513,8 +551,10 @@ function getResponseArrayFromESResults(results,fields){
 
 
 ElasticHarvest.prototype.setPathToCustomRoutingKey = function (pathToCustomRoutingKey) {
-    this.options = this.options || {}
-    this.options.pathToCustomRoutingKey = pathToCustomRoutingKey
+    if (typeof pathToCustomRoutingKey !== 'string' || pathToCustomRoutingKey === '') {
+        throw new Error('pathToCustomRoutingKey must be a non empty string')
+    }
+    this.pathToCustomRoutingKey = pathToCustomRoutingKey
     return this;  // so we can chain it
 }
 
@@ -1203,11 +1243,18 @@ ElasticHarvest.prototype.sync = function(model){
     model._lastUpdated = new Date().getTime();
     var esBody = JSON.stringify(model);
     var _this = this;
-    var routing = getRouting(this.options)
+    var routing = getRouting(_this)
     var options = {uri: this.es_url + '/'+this.index+'/'+this.type+'/' + model.id + routing, body: esBody,pool:postPool};
 
     function getRouting(options) {
-        return options.pathToCustomRoutingKey ? '?routing=' + model[options.pathToCustomRoutingKey] : ''
+        if (!options.pathToCustomRoutingKey) return '' // custom routing not enabled
+        var value = Util.getProperty(model, options.pathToCustomRoutingKey)
+        if (value) {
+            return '?routing=' + value
+        } else {
+            console.error('Routing Key required, but not available:', _this.type, options.pathToCustomRoutingKey, JSON.stringify(model, null, 2))
+            return ''
+        }
     }
 
     return new Promise(function (resolve, reject) {

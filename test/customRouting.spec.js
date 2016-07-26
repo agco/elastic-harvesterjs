@@ -12,10 +12,9 @@ const request = require('request')
 const seeder = require('./seeder')
 const Promise = require('bluebird')
 const ElasticHarvest = require('../elastic-harvester')
-
+const Utils = require('../Util')
 
 const syncWaitTime = 1000  // milliseconds
-const collection = 'people'
 
 
 function queryElasticSearch(config, command) {
@@ -48,13 +47,14 @@ describe('Custom Routing', function () {
     var config
     var options
     var personCustomRoutingKeyPath
+    var warriorCustomRoutingKeyPath
 
     beforeEach(function () {
         seederInstance = seeder(this.harvesterApp)
-        seederInstance.dropCollections(collection)
         config = this.config
         options = config.harvester.options
         personCustomRoutingKeyPath = this.personCustomRoutingKeyPath
+        warriorCustomRoutingKeyPath = this.warriorCustomRoutingKeyPath
         this.createOptions = function (uri) {
             // helper function to create $http options object when given a uri
             return {
@@ -80,13 +80,54 @@ describe('Custom Routing', function () {
             var testSearch = new ElasticHarvest(this.app, options.es_url, options.es_index, 'test')
 
             testSearch.setPathToCustomRoutingKey('gender')
-            testSearch.options.pathToCustomRoutingKey.should.equal('gender')
+            testSearch.pathToCustomRoutingKey.should.equal('gender')
+        })
+
+        it('should add multiple pathToCustomRoutingKeys for each model', function () {
+            var testSearchA = new ElasticHarvest(this.app, options.es_url, options.es_index, 'testA')
+            var testSearchB = new ElasticHarvest(this.app, options.es_url, options.es_index, 'testB')
+
+            testSearchA.setPathToCustomRoutingKey('gender')
+            testSearchB.setPathToCustomRoutingKey('nationality')
+            testSearchA.pathToCustomRoutingKey.should.equal('gender')
+            testSearchB.pathToCustomRoutingKey.should.equal('nationality')
         })
 
     })
 
     describe('Syncing with CustomRouting', function () {
+
+        function validateShardMatchesSearch(config, customRoutingValue) {
+           return Promise.all([
+               // ElasticSearch API command to get the shard searched for a given routing key
+               queryElasticSearch(config, '/' + config.harvester.options.es_index + '/_search_shards?routing=' + customRoutingValue),
+               // ElasticSearch "_cat" command that gets the number of documents per shard. Also indicates
+               // parimary/replica since we can't filter the replicas out, we'll have to do this manually.
+               catElasticSearch(config, 'shards/' + config.harvester.options.es_index + '?h=s,p,d')
+           ])
+               .spread(function (searchedShards, shardStats) {
+                   var searchShard = searchedShards.shards[0][0].shard
+                   var docsCount
+
+                   console.log('searchedShard:', searchShard)
+                   console.log('docsPerShard:', shardStats)
+
+                   _.forEach(shardStats.split('\n'), function (row) {
+                       var values = row.split(' ')
+                       var shard = parseInt(values[0], 10)
+                       var docs = parseInt(values[2], 10)
+
+                       if (shard === searchShard && values[1] === 'p' && !isNaN(docs)) {
+                           docsCount = docs
+                           return false
+                       }
+                   })
+                   return docsCount
+               })
+        }
+
         it('should send documents to different shards', function () {
+            var collection = 'people'
             // plan is to post a document, which should get indexed
             // then we can use the ElasticSearch API to get the shard our key would map to and the documents listed per
             // shard and check that it incremented by one after we added our document.
@@ -98,7 +139,11 @@ describe('Custom Routing', function () {
             }
             var routingKey = this.personCustomRoutingKeyPath
 
-            return seederInstance.post(collection, [newPerson])
+            this.timeout(syncWaitTime + 1000)
+            return seederInstance.dropCollections(collection)
+                .then(function () {
+                    return seederInstance.post(collection, [newPerson])
+                })
                 .then(function (results) {
                     // check it was posted correctly. Note this can pass, but indexing might still fail...
                     results.should.have.property(collection)
@@ -108,38 +153,51 @@ describe('Custom Routing', function () {
                     return Promise.delay(syncWaitTime)  // allow sync to happen
                 })
                 .then(function () {
-                    // ElasticSearch API command to get the shard searched for a given routing key
-                    var command = '/' + config.harvester.options.es_index + '/_search_shards?routing=' + newPerson[routingKey]
-                    // ElasticSearch "_cat" command that gets the number of documents per shard. Also indicates
-                    // parimary/replica since we can't filter the replicas out, we'll have to do this manually.
-                    var catCommand = 'shards/' + config.harvester.options.es_index + '?h=s,p,d'
+                    return validateShardMatchesSearch(config, newPerson[routingKey])
+                })
+                .then(function (shardMatchesSearch) {
+                    shardMatchesSearch.should.equal(1)  // there should only be one document here
+                })
+        })
 
+        it('should send document to different shards WHEN pathToRoutingKey is a path', function () {
+            var newEquipment = {
+                name: 'Fist of Fury',
+                id: '024f266c-e0e6-4384-b55e-92693c43096e'
+            }
+            var newWarrior = {
+                name: 'Alice the Angry',
+                id: '781ace40-60c1-4c0c-809b-58352c024c36',
+                links: {
+                    weapon: newEquipment.id
+                }
+            }
+            var warriorCustomRoutingKeyPath = this.warriorCustomRoutingKeyPath
+
+            this.timeout(syncWaitTime + 1000)
+            return seederInstance.dropCollections('warriors', 'equipment')
+                .then(function () {
                     return Promise.all([
-                        queryElasticSearch(config, command),
-                        catElasticSearch(config, catCommand)
+                        seederInstance.post('equipment', [ newEquipment ]),
+                        seederInstance.post('warriors', [ newWarrior ])
                     ])
                 })
-                .spread(function validateRoutingToShardsWasUsed(searchedShards, shardStats) {
-                    // an extra check that only one of our 5 shards was searched
-                    searchedShards.shards.length.should.equal(1)     // for some reason this is an array of arrays
-                    searchedShards.shards[0].length.should.equal(1)
+                .spread(function (equipment, warriors) {
+                    equipment.should.have.property('equipment')
+                    equipment['equipment'].should.be.an.Array
+                    equipment['equipment'][0].should.equal(newEquipment.id)
+                    warriors.should.have.property('warriors')
+                    warriors['warriors'].should.be.an.Array
+                    warriors['warriors'][0].should.equal(newWarrior.id)
+                    return Promise.delay(syncWaitTime)  // allow sync to happen
+                })
+                .then(function () {
+                    return validateShardMatchesSearch(config, newEquipment.id)
+                })
+                .then(function (shardMatchesSearch) {
+                    // as warriors are linked to equipment, both warriors and equipment will be stored on the same shard
+                    shardMatchesSearch.should.be.above(2)  // expected two but there are 4
 
-                    // now get that shard number
-                    var searchShard = searchedShards.shards[0][0].shard
-                    var docsCount
-
-                    // filter the results to get the shard we care about
-                    _.forEach(shardStats.split('\n'), function (row) {
-                        var values = row.split(' ')
-                        var shard = parseInt(values[0], 10)
-                        var docs = parseInt(values[2], 10)
-
-                        if (shard === searchShard && values[1] === 'p' && !isNaN(docs)) {
-                            docsCount = docs
-                            return false
-                        }
-                    })
-                    docsCount.should.equal(1)
                 })
         })
     })
@@ -156,7 +214,6 @@ describe('Custom Routing', function () {
                 })
         })
 
-        // TODO: Doesn't appear that customRouting in simpleSearch is being exercised here.
         it('should still search WHEN customRouting is enabled BUT not given as a search predicate', function () {
             return $http.get(this.createOptions('/people/search?appearances=le=2000'))
                 .spread(function (res, body) {
