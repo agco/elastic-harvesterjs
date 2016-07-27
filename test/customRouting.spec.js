@@ -229,7 +229,7 @@ describe('Custom Routing', function () {
         })
     })
 
-    describe.skip('Searching With Custom Routing', function () {
+    describe('Searching With Custom Routing', function () {
         var config
 
         beforeEach(function seedPeople() {
