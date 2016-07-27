@@ -122,7 +122,7 @@ describe('Custom Routing', function () {
 
     })
 
-    describe('Syncing with CustomRouting', function () {
+    describe('Syncing WHEN CustomRouting is enabled', function () {
 
         function validateShardMatchesSearch(config, customRoutingValue) {
            return Promise.all([
@@ -136,6 +136,8 @@ describe('Custom Routing', function () {
                    var searchShard = searchedShards.shards[0][0].shard
                    var docsCount
 
+                   console.log('searched:', searchedShards)
+                   console.log('shardStats:', shardStats)
                    _.forEach(shardStats.split('\n'), function (row) {
                        var values = row.split(' ')
                        var shard = parseInt(values[0], 10)
@@ -150,7 +152,7 @@ describe('Custom Routing', function () {
                })
         }
 
-        it('should send documents to different shards', function () {
+        it('should route documents to different shards', function () {
             var collection = 'people'
             // plan is to post a document, which should get indexed
             // then we can use the ElasticSearch API to get the shard our key would map to and the documents listed per
@@ -163,7 +165,7 @@ describe('Custom Routing', function () {
             }
             var routingKey = this.personCustomRoutingKeyPath
 
-            this.timeout(syncWaitTime + 1000)
+            this.timeout(syncWaitTime + 2000)
             return seederInstance.dropCollections(collection)
                 .then(function () {
                     return seederInstance.post(collection, [newPerson])
@@ -174,7 +176,7 @@ describe('Custom Routing', function () {
                     results[collection].should.be.an.Array
                     results[collection][0].should.equal(newPerson.id)
 
-                    return Promise.delay(syncWaitTime)  // allow sync to happen
+                    return Promise.delay(syncWaitTime + 1000)  // allow sync to happen
                 })
                 .then(function () {
                     return validateShardMatchesSearch(config, newPerson[routingKey])
