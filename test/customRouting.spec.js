@@ -8,6 +8,7 @@
 // dependencies
 var _ = require('lodash')
 var $http = require('http-as-promised')
+var harvester = require('harvesterjs');
 var request = require('request')
 var seeder = require('./seeder')
 var Promise = require('bluebird')
@@ -42,16 +43,45 @@ function catElasticSearch(config, catCommand) {
 }
 
 // need a harvester with routing turned on.
-describe('Custom Routing', function () {
+describe.skip('Custom Routing', function () {
     var seederInstance
+    var dealerSeederInstance
+    var dealerHarvesterApp
     var config
     var options
+    var dealerOptions
+    var dealerPort
     var personCustomRoutingKeyPath
     var warriorCustomRoutingKeyPath
 
+    // before(function startDealerHarvesterApp() {
+    //     var config = this.config
+    //
+    //     dealerPort = config.harvester.port + 1
+    //     dealerOptions = _.cloneDeep(config.harvester.options)
+    //     dealerOptions.db = 'ehTestDb2'
+    //     dealerOptions.connectionString = 'mongodb://127.0.0.1:27017/' + dealerOptions.db
+    //     dealerHarvesterApp = harvester(dealerOptions)
+    //     dealerHarvesterApp.resource('dealer', {
+    //         name: Joi.string()
+    //     }).listen(dealerPort)
+    //     dealerSeederInstance  = seeder(dealerHarvesterApp, 'http://localhost:' + dealerPort)
+    //     return dealerSeederInstance.dropCollections('dealers')
+    //         .then(function () {
+    //             return dealerSeederInstance.seedCustomFixture({
+    //                 dealers: [
+    //                     {
+    //                         id: '732a8c22-a363-4ee6-b3b2-14fb717e8d1b',
+    //                         name: 'Dogbert Arms & Co'
+    //                     }
+    //                 ]
+    //             })
+    //         })
+    // })
+
     beforeEach(function () {
-        seederInstance = seeder(this.harvesterApp)
         config = this.config
+        seederInstance = seeder(this.harvesterApp)
         options = config.harvester.options
         personCustomRoutingKeyPath = this.personCustomRoutingKeyPath
         warriorCustomRoutingKeyPath = this.warriorCustomRoutingKeyPath
@@ -160,7 +190,10 @@ describe('Custom Routing', function () {
         it('should send document to different shards WHEN pathToRoutingKey is a path', function () {
             var newEquipment = {
                 name: 'Fist of Fury',
-                id: '024f266c-e0e6-4384-b55e-92693c43096e'
+                id: '024f266c-e0e6-4384-b55e-92693c43096e',
+                links: {
+                    dealer: '732a8c22-a363-4ee6-b3b2-14fb717e8d1b'
+                }
             }
             var newWarrior = {
                 name: 'Alice the Angry',
