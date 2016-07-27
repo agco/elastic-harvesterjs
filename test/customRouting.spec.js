@@ -237,9 +237,13 @@ describe('Custom Routing', function () {
         beforeEach(function seedPeople() {
             config = this.config
             this.timeout(config.esIndexWaitTime + 6000)
-            return seeder(this.harvesterApp).dropCollectionsAndSeed('people', 'equipment')
+            return seederInstance.dropCollectionsAndSeed('people', 'equipment')
                 .then(function () {
+                    console.log('dropped people and equipment and reseeded')
                     return Promise.delay(config.esIndexWaitTime + 2000)
+                })
+                .then(function () {
+                    console.log('finished beforeEach')
                 })
         })
 
@@ -253,7 +257,7 @@ describe('Custom Routing', function () {
                 })
         })
 
-        it('should add one custom routing value WHEN customRouting is enabled', function () {
+        it.skip('should add one custom routing value WHEN customRouting is enabled', function () {
             return $http.get(this.createOptions('/people/search?name=Dilbert'))
                 .spread(function (res, body) {
                     res.statusCode.should.equal(200)
@@ -263,7 +267,7 @@ describe('Custom Routing', function () {
                 })
         })
 
-        it.skip('should add many custom routing values WHEN custumRouting is enabled', function () {
+        it('should add many custom routing values WHEN custumRouting is enabled', function () {
             return $http.get(this.createOptions('/people/search?name=Dilbert,Wally'))
                 .spread(function (res, body) {
                     res.statusCode.should.equal(200)
