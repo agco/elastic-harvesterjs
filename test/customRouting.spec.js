@@ -136,7 +136,7 @@ describe('Custom Routing', function () {
                    var searchShard = searchedShards.shards[0][0].shard
                    var docsCount
 
-                   console.log('searched:', searchedShards)
+                   console.log('searched:', searchedShards.shards[0])
                    console.log('shardStats:', shardStats)
                    _.forEach(shardStats.split('\n'), function (row) {
                        var values = row.split(' ')
@@ -203,7 +203,7 @@ describe('Custom Routing', function () {
             }
             var warriorCustomRoutingKeyPath = this.warriorCustomRoutingKeyPath
 
-            this.timeout(syncWaitTime + 1000)
+            this.timeout(syncWaitTime + 3000)
             return seederInstance.dropCollections('warriors', 'equipment')
                 .then(function () {
                     return Promise.all([
@@ -218,7 +218,7 @@ describe('Custom Routing', function () {
                     warriors.should.have.property('warriors')
                     warriors['warriors'].should.be.an.Array
                     warriors['warriors'][0].should.equal(newWarrior.id)
-                    return Promise.delay(syncWaitTime)  // allow sync to happen
+                    return Promise.delay(syncWaitTime + 2000)  // allow sync to happen
                 })
                 .then(function () {
                     return validateShardMatchesSearch(config, newEquipment.id)
@@ -231,7 +231,7 @@ describe('Custom Routing', function () {
         })
     })
 
-    describe.skip('Searching With Custom Routing', function () {
+    describe('Searching With Custom Routing', function () {
         var config
 
         beforeEach(function seedPeople() {
@@ -253,7 +253,7 @@ describe('Custom Routing', function () {
                 })
         })
 
-        it('should add one custom routing value WHEN customRouting is enabled', function () {
+        it.skip('should add one custom routing value WHEN customRouting is enabled', function () {
             return $http.get(this.createOptions('/people/search?name=Dilbert'))
                 .spread(function (res, body) {
                     res.statusCode.should.equal(200)
@@ -263,7 +263,7 @@ describe('Custom Routing', function () {
                 })
         })
 
-        it('should add many custom routing values WHEN custumRouting is enabled', function () {
+        it.skip('should add many custom routing values WHEN custumRouting is enabled', function () {
             return $http.get(this.createOptions('/people/search?name=Dilbert,Wally'))
                 .spread(function (res, body) {
                     res.statusCode.should.equal(200)
@@ -274,7 +274,7 @@ describe('Custom Routing', function () {
                 })
         })
 
-        it('should still search WHEN customRouting is NOT enabled', function () {
+        it.skip('should still search WHEN customRouting is NOT enabled', function () {
             var searchKey = 'name'
             var searchTerm = 'Dilbot'
 
