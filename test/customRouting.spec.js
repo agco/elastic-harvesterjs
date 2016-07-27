@@ -43,7 +43,7 @@ function catElasticSearch(config, catCommand) {
 }
 
 // need a harvester with routing turned on.
-describe.skip('Custom Routing', function () {
+describe('Custom Routing', function () {
     var seederInstance
     var dealerSeederInstance
     var dealerHarvesterApp
@@ -95,9 +95,6 @@ describe.skip('Custom Routing', function () {
         }
     })
 
-    afterEach(function () {
-    })
-
     describe('The setPathToCustomRoutingKey function', function () {
 
         it('should be a function of ElasticHarvest', function () {
@@ -125,7 +122,7 @@ describe.skip('Custom Routing', function () {
 
     })
 
-    describe('Syncing with CustomRouting', function () {
+    describe.skip('Syncing with CustomRouting', function () {
 
         function validateShardMatchesSearch(config, customRoutingValue) {
            return Promise.all([
@@ -232,7 +229,7 @@ describe.skip('Custom Routing', function () {
         })
     })
 
-    describe('Searching With Custom Routing', function () {
+    describe.skip('Searching With Custom Routing', function () {
         var config
 
         beforeEach(function seedPeople() {
