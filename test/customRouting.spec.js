@@ -225,7 +225,7 @@ describe('Custom Routing', function () {
                 })
                 .then(function (shardMatchesSearch) {
                     // as warriors are linked to equipment, both warriors and equipment will be stored on the same shard
-                    shardMatchesSearch.should.be.above(2)  // expected two but there are 4
+                    shardMatchesSearch.should.be.greaterThan(1)  // expected two but there are more
 
                 })
         })
@@ -237,13 +237,13 @@ describe('Custom Routing', function () {
         beforeEach(function seedPeople() {
             config = this.config
             this.timeout(config.esIndexWaitTime + 6000)
-            return seeder(this.harvesterApp).dropCollectionsAndSeed('pets', 'people', 'equipment')
+            return seeder(this.harvesterApp).dropCollectionsAndSeed('people', 'equipment')
                 .then(function () {
                     return Promise.delay(config.esIndexWaitTime + 2000)
                 })
         })
 
-        it('should still search WHEN customRouting is enabled BUT not given as a search predicate', function () {
+        it.skip('should still search WHEN customRouting is enabled BUT not given as a search predicate', function () {
             return $http.get(this.createOptions('/people/search?appearances=le=2000'))
                 .spread(function (res, body) {
                     res.statusCode.should.equal(200)
@@ -253,7 +253,7 @@ describe('Custom Routing', function () {
                 })
         })
 
-        it.skip('should add one custom routing value WHEN customRouting is enabled', function () {
+        it('should add one custom routing value WHEN customRouting is enabled', function () {
             return $http.get(this.createOptions('/people/search?name=Dilbert'))
                 .spread(function (res, body) {
                     res.statusCode.should.equal(200)
