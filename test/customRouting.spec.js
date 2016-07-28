@@ -237,7 +237,7 @@ describe('Custom Routing', function () {
         beforeEach(function seedPeople() {
             config = this.config
             this.timeout(config.esIndexWaitTime + 6000)
-            return seederInstance.dropCollectionsAndSeed('people', 'equipment')
+            return seederInstance.dropCollectionsAndSeed('equipment', 'people')
                 .then(function () {
                     console.log('dropped people and equipment and reseeded')
                     return Promise.delay(config.esIndexWaitTime + 2000)
@@ -267,7 +267,7 @@ describe('Custom Routing', function () {
                 })
         })
 
-        it('should add many custom routing values WHEN custumRouting is enabled', function () {
+        it.skip('should add many custom routing values WHEN custumRouting is enabled', function () {
             return $http.get(this.createOptions('/people/search?name=Dilbert,Wally'))
                 .spread(function (res, body) {
                     res.statusCode.should.equal(200)
@@ -278,7 +278,7 @@ describe('Custom Routing', function () {
                 })
         })
 
-        it.skip('should still search WHEN customRouting is NOT enabled', function () {
+        it('should still search WHEN customRouting is NOT enabled', function () {
             var searchKey = 'name'
             var searchTerm = 'Dilbot'
 
