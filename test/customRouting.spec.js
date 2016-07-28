@@ -234,25 +234,14 @@ describe('Custom Routing', function () {
 
         beforeEach(function seedPeople() {
             config = this.config
-            this.timeout(config.esIndexWaitTime + 6000)
-            return seederInstance.dropCollectionsAndSeed('equipment')
-                // .then(function () {
-                //     return seederInstance.dropCollectionsAndSeed('equipment')
-                // })
+            this.timeout(12000)
+            return seederInstance.dropCollectionsAndSeed('equipment', 'people')
                 .then(function () {
-                    // console.log('dropped people and reseeded')
-                    console.log('dropped equipment and reseaded')
-                    console.log('typeof esIndexWaitTime', typeof config.esIndexWaitTime)
-                    console.log('delaying for num first:   ', 2000 + config.esIndexWaitTime)
-                    console.log('delaying for config first:', config.esIndexWaitTime + 2000)
-                    // return Promise.delay(config.esIndexWaitTime + 2000)
-                })
-                .then(function () {
-                    console.log('finished beforeEach')
+                    return Promise.delay(7000)
                 })
         })
 
-        it.skip('should still search WHEN customRouting is enabled BUT not given as a search predicate', function () {
+        it('should still search WHEN customRouting is enabled BUT not given as a search predicate', function () {
             return $http.get(this.createOptions('/people/search?appearances=le=2000'))
                 .spread(function (res, body) {
                     res.statusCode.should.equal(200)
@@ -262,7 +251,7 @@ describe('Custom Routing', function () {
                 })
         })
 
-        it.skip('should add one custom routing value WHEN customRouting is enabled', function () {
+        it('should add one custom routing value WHEN customRouting is enabled', function () {
             return $http.get(this.createOptions('/people/search?name=Dilbert'))
                 .spread(function (res, body) {
                     res.statusCode.should.equal(200)
@@ -272,7 +261,7 @@ describe('Custom Routing', function () {
                 })
         })
 
-        it.skip('should add many custom routing values WHEN custumRouting is enabled', function () {
+        it('should add many custom routing values WHEN custumRouting is enabled', function () {
             return $http.get(this.createOptions('/people/search?name=Dilbert,Wally'))
                 .spread(function (res, body) {
                     res.statusCode.should.equal(200)
