@@ -235,13 +235,13 @@ describe('Custom Routing', function () {
         beforeEach(function seedPeople() {
             config = this.config
             this.timeout(config.esIndexWaitTime + 6000)
-            return seederInstance.dropCollectionsAndSeed('people')
+            return seederInstance.dropCollectionsAndSeed('equipment')
                 // .then(function () {
                 //     return seederInstance.dropCollectionsAndSeed('equipment')
                 // })
                 .then(function () {
-                    console.log('dropped people and reseeded')
-                    // console.log('dropped equipment and equipment')
+                    // console.log('dropped people and reseeded')
+                    console.log('dropped equipment and equipment')
                     return Promise.delay(config.esIndexWaitTime + 2000)
                 })
                 .then(function () {
@@ -249,7 +249,7 @@ describe('Custom Routing', function () {
                 })
         })
 
-        it('should still search WHEN customRouting is enabled BUT not given as a search predicate', function () {
+        it.skip('should still search WHEN customRouting is enabled BUT not given as a search predicate', function () {
             return $http.get(this.createOptions('/people/search?appearances=le=2000'))
                 .spread(function (res, body) {
                     res.statusCode.should.equal(200)
@@ -280,7 +280,7 @@ describe('Custom Routing', function () {
                 })
         })
 
-        it.skip('should still search WHEN customRouting is NOT enabled', function () {
+        it('should still search WHEN customRouting is NOT enabled', function () {
             var searchKey = 'name'
             var searchTerm = 'Dilbot'
 
