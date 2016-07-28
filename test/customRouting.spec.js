@@ -242,7 +242,9 @@ describe('Custom Routing', function () {
                 .then(function () {
                     // console.log('dropped people and reseeded')
                     console.log('dropped equipment and reseaded')
-                    console.log('delaying for:', config.esIndexWaitTime  + 2000)
+                    console.log('typeof esIndexWaitTime', typeof config.esIndexWaitTime)
+                    console.log('delaying for num first:   ', 2000 + config.esIndexWaitTime)
+                    console.log('delaying for config first:', config.esIndexWaitTime + 2000)
                     // return Promise.delay(config.esIndexWaitTime + 2000)
                 })
                 .then(function () {
