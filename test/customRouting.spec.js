@@ -241,8 +241,9 @@ describe('Custom Routing', function () {
                 // })
                 .then(function () {
                     // console.log('dropped people and reseeded')
-                    console.log('dropped equipment and equipment')
-                    return Promise.delay(config.esIndexWaitTime + 2000)
+                    console.log('dropped equipment and reseaded')
+                    console.log('delaying for:', config.esIndexWaitTime  + 2000)
+                    // return Promise.delay(config.esIndexWaitTime + 2000)
                 })
                 .then(function () {
                     console.log('finished beforeEach')
