@@ -2,7 +2,7 @@ var harvesterPort = process.env.HARVESTER_PORT || 8000;
 
 module.exports = {
     baseUrl: 'http://localhost:' + harvesterPort,
-    esIndexWaitTime: process.env.ES_INDEX_WAIT_TIME || 3000,
+    esIndexWaitTime: parseInt(process.env.ES_INDEX_WAIT_TIME) || 3000,
     harvester: {
         port: harvesterPort,
         options: {

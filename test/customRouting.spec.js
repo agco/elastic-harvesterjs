@@ -234,10 +234,10 @@ describe('Custom Routing', function () {
 
         beforeEach(function seedPeople() {
             config = this.config
-            this.timeout(12000)
+            this.timeout(config.esIndexWaitTime * 2)
             return seederInstance.dropCollectionsAndSeed('equipment', 'people')
                 .then(function () {
-                    return Promise.delay(7000)
+                    return Promise.delay(config.exIndexWaitTime)
                 })
         })
 
