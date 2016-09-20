@@ -943,7 +943,7 @@ ElasticHarvest.prototype.getEsQueryBody = function (predicates, nestedPredicates
                         var sortTerm = {};
                         var lastDot = sortParam.lastIndexOf('.');
                         if (lastDot !== -1) {
-                            var sortField = sortParam.substring(lastDot + 1);
+                            var sortField = sortParam
                             var nestedPath = sortParam.substring(0, lastDot);
                             sortTerm[sortField]={"order":sortDirection, "nested_path": nestedPath, "ignore_unmapped":true};
                         } else {
