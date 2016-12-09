@@ -1,4 +1,5 @@
 //dependencies
+var _ = require('lodash');
 var chai = require('chai');
 var expect = chai.expect;
 var $http = require('http-as-promised');
@@ -10,7 +11,7 @@ var fixtures = require('./fixtures')();
 
 describe('#syncIndex', function() {
     var config;
-    before(function () {
+    beforeEach(function () {
         config = this.config;
         this.timeout(config.esIndexWaitTime + 10000);
         return seeder(this.harvesterApp).dropCollectionsAndSeed('people', 'pets')
@@ -42,17 +43,21 @@ describe('#syncIndex', function() {
     });
 
     it('works!', function() {
-        this.timeout(config.esIndexWaitTime + 10000);
         var dog = fixtures['pets'][0];
-        dog.name = "dogebert";
+
+        this.timeout(config.esIndexWaitTime + 10000);
+        dog.name = "dogebert";  // this assignment and the syncIndex below appear to have no affect on this test...
         return this.peopleSearch.syncIndex('pets', 'update', dog)
             .delay(config.esIndexWaitTime)
             .then(function() {
-                return $http.get(config.baseUrl+'/people/search?include=pets', {json: true})
+                return $http.get(config.baseUrl + '/people/search?include=pets', { json: true })
             })
-            .spread(function(res, body) {
-                var pet = body.people[1].links.pets[0];
+            .spread(function (res, body) {
+                var personOfInterest;
+
                 expect(res.statusCode).to.equal(200);
+                personOfInterest = _.find(body.people, { name: 'Dilbert' });
+                expect(personOfInterest.links.pets[0]).to.equal(dog.id);
             });
     });
 });

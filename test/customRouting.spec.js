@@ -8,12 +8,12 @@
 // dependencies
 var _ = require('lodash')
 var $http = require('http-as-promised')
+var config = require('./config');
 var harvester = require('harvesterjs');
 var request = require('request')
 var seeder = require('./seeder')
 var Promise = require('bluebird')
 var ElasticHarvest = require('../elastic-harvester')
-var Utils = require('../Util')
 
 var syncWaitTime = 1000  // milliseconds
 
