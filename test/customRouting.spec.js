@@ -43,7 +43,7 @@ function catElasticSearch(config, catCommand) {
 }
 
 // need a harvester with routing turned on.
-describe('Custom Routing', function () {
+describe.only('Custom Routing', function () {
     var seederInstance
     var dealerSeederInstance
     var dealerHarvesterApp
