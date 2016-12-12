@@ -8,16 +8,20 @@ var Promise = require('bluebird');
 var testUtils = require('./util');
 
 var esLatency = 1000;
+var Cache = require('../lib/singletonAdapterCache');
 
 before(function () {
+    var _this = this;
     this.timeout(config.esIndexWaitTime + 1000);
     return harvesterApp.apply(this).then(function (harvesterInstance) {
+        _this.singletonCache = Cache.getInstance();
         return events(harvesterInstance);
     });
 
 });
 
 beforeEach(function () {
+    this.singletonCache.clear();  // clear the cache between tests
     return Promise.all(_.forEach(config.harvester.options.es_types, function (indexName) {
         return testUtils.deleteAllEsDocsFromIndex(config.harvester.options.es_index, indexName);
     }));
