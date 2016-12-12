@@ -17,8 +17,8 @@ before(function () {
 
 });
 
-beforeEach(function () {
-    return Promise.all(_.forEach(config.harvester.options.es_types, function (indexName) {
-        return testUtils.deleteAllEsDocsFromIndex(config.harvester.options.es_index, indexName);
-    }));
-});
+// beforeEach(function () {
+//     return Promise.all(_.forEach(config.harvester.options.es_types, function (indexName) {
+//         return testUtils.deleteAllEsDocsFromIndex(config.harvester.options.es_index, indexName);
+//     }));
+// });

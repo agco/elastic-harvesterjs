@@ -14,6 +14,7 @@ var request = require('request')
 var seeder = require('./seeder')
 var Promise = require('bluebird')
 var ElasticHarvest = require('../elastic-harvester')
+var testUtils = require('./util');
 
 var syncWaitTime = 1000  // milliseconds
 
@@ -93,6 +94,9 @@ describe('Custom Routing', function () {
                 error: false
             }
         }
+        return Promise.all(_.forEach(config.harvester.options.es_types, function (indexName) {
+            return testUtils.deleteAllEsDocsFromIndex(config.harvester.options.es_index, indexName);
+        }));
     })
 
     describe('The setPathToCustomRoutingKey function', function () {
