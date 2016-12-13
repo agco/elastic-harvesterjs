@@ -9,7 +9,7 @@ var seeder = require('./seeder.js');
 describe("filters", function () {
 
     var config, ids;
-    before(function () {
+    beforeEach(function () {
         config = this.config;
         this.timeout(config.esIndexWaitTime + 1000);
         return seeder(this.harvesterApp).dropCollectionsAndSeed(false, 'people', 'pets').then(function (result) {
@@ -162,7 +162,10 @@ describe("filters", function () {
     it('should support multi-value queries', function (done) {
         //NOTE: these ids will fail a basic match query lookup, while most other id values will not;
         //they are specially selected and should be retained in any version of this test.
-        request(config.baseUrl).get('/people/search?id=b76826d0-0ab6-11e5-a3f4-470467a3b6a8,b767ffc1-0ab6-11e5-a3f4-470467a3b6a8').expect(200).end(function (err,
+        request(config.baseUrl)
+            .get('/people/search?id=b76826d0-0ab6-11e5-a3f4-470467a3b6a8,b767ffc1-0ab6-11e5-a3f4-470467a3b6a8')
+            .expect(200)
+            .end(function (err,
                                                                                                                                                              res) {
             should.not.exist(err);
             var body = JSON.parse(res.text);

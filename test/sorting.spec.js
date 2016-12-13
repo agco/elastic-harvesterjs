@@ -34,7 +34,7 @@ describe('sorting', function () {
     }
 
     var config, ids;
-    before(function () {
+    beforeEach(function () {
         config = this.config;
         this.timeout(config.esIndexWaitTime*2 + 1000);
         return seeder(this.harvesterApp).dropCollectionsAndSeed('pets','people')

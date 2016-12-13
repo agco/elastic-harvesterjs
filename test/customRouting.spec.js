@@ -8,12 +8,13 @@
 // dependencies
 var _ = require('lodash')
 var $http = require('http-as-promised')
+var config = require('./config');
 var harvester = require('harvesterjs');
 var request = require('request')
 var seeder = require('./seeder')
 var Promise = require('bluebird')
 var ElasticHarvest = require('../elastic-harvester')
-var Utils = require('../Util')
+var testUtils = require('./util');
 
 var syncWaitTime = 1000  // milliseconds
 
@@ -93,6 +94,9 @@ describe('Custom Routing', function () {
                 error: false
             }
         }
+        return Promise.map(config.harvester.options.es_types, function (indexName) {
+            return testUtils.deleteAllEsDocsFromIndex(config.harvester.options.es_index, indexName);
+        });
     })
 
     describe('The setPathToCustomRoutingKey function', function () {
