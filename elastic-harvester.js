@@ -27,6 +27,7 @@ var defaultOptions = {
     }
 };
 function ElasticHarvest(harvest_app,es_url,index,type,options) {
+    console.warn('[Elastic-Harvest] delete functionality does not work with ElasticSearch 2.x or greater.');
     var _this= this;
     if(harvest_app){
         this.collectionLookup=getCollectionLookup(harvest_app,type);
