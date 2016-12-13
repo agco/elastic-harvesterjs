@@ -4,6 +4,7 @@ node_js:
 services:
 - elasticsearch
 before_script:
+  - "elasticsearch -v"
   - mkdir testdb
   - mongod --port 27017 --dbpath testdb --replSet rs0 --oplogSize 20 --noprealloc --fork --smallfiles --logpath mongodb.log
   - sleep 3

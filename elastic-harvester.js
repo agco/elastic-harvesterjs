@@ -10,6 +10,7 @@ var autoUpdateInputGenerator  = new (require("./autoUpdateInputGenerator"))();
 var SampleScript = require('./lib/scripts/sampler');
 var sendError = require('harvesterjs').sendError;
 var JSONAPI_Error = require('harvesterjs').JSONAPI_Error;
+var Cache = require('./lib/singletonAdapterCache');
 
 //Bonsai wants us to only send 1 ES query at a time, for POSTs/PUTs. Later on we can add more pools for other requests if needed.
 var http = require('http');
@@ -26,6 +27,7 @@ var defaultOptions = {
     }
 };
 function ElasticHarvest(harvest_app,es_url,index,type,options) {
+    console.warn('[Elastic-Harvest] delete functionality does not work with ElasticSearch 2.x or greater.');
     var _this= this;
     if(harvest_app){
         this.collectionLookup=getCollectionLookup(harvest_app,type);
@@ -33,6 +35,8 @@ function ElasticHarvest(harvest_app,es_url,index,type,options) {
         this.invertedAutoUpdateInput = generateUpdateMap(this.autoUpdateInput);
         this.adapter = harvest_app.adapter;
         this.harvest_app = harvest_app;
+        Cache.initCache(harvest_app.adapter)
+        this.singletonCache = Cache.getInstance();
     }else{
         console.warn("[Elastic-Harvest] Using elastic-harvester without a harvest-app. Functionality will be limited.");
     }
@@ -1295,7 +1299,7 @@ ElasticHarvest.prototype.expandEntity = function (entity,depth,currentPath){
         if (_.isArray(entity.links[key])) {
             findFnName = "findMany";
         }
-        promises[key] = _this.adapter[findFnName](collectionName, entity.links[key]).then(function (result) {
+        promises[key] = _this.singletonCache[findFnName](collectionName, entity.links[key]).then(function (result) {
             expandWithResult(entity, key, result);
             return result;
         }, function (err) {
