@@ -37,7 +37,6 @@ function ElasticHarvest(harvest_app,es_url,index,type,options) {
         this.harvest_app = harvest_app;
         Cache.initCache(harvest_app.adapter)
         this.singletonCache = Cache.getInstance();
-        this.clearCache = this.singletonCache.clear
     }else{
         console.warn("[Elastic-Harvest] Using elastic-harvester without a harvest-app. Functionality will be limited.");
     }
