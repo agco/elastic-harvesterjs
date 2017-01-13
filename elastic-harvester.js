@@ -1302,7 +1302,8 @@ ElasticHarvest.prototype.expandEntity = function (entity,depth,currentPath){
         if (_.isArray(entity.links[key])) {
             findFnName = "findMany";
         }
-        promises[key] = _this.singletonCache[findFnName](collectionName, entity.links[key]).then(function (result) {
+        promises[key] = _this.singletonCache[findFnName](collectionName, entity.links[key])
+          .then(function (result) {
             expandWithResult(entity, key, result);
             return result;
         }, function (err) {
