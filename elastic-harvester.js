@@ -1287,11 +1287,14 @@ function depthIsInScope(options,depth,currentPath){
 
 ElasticHarvest.prototype.expandEntity = function (entity,depth,currentPath){
     function expandWithResult(entity, key, result) {
-        if (depth > 0) {
-            entity[key] = result;
-        } else {
-            entity.links[key] = result;
-        }
+      if (depth > 0) {
+          _.forIn(result, function(value, key) {
+              if (value === '') delete result[key];
+          });
+          entity[key] = result;
+      } else {
+          entity.links[key] = result;
+      }
     }
 
     function fetchLocalLink(collectionName,val,key) {
@@ -1299,7 +1302,8 @@ ElasticHarvest.prototype.expandEntity = function (entity,depth,currentPath){
         if (_.isArray(entity.links[key])) {
             findFnName = "findMany";
         }
-        promises[key] = _this.singletonCache[findFnName](collectionName, entity.links[key]).then(function (result) {
+        promises[key] = _this.singletonCache[findFnName](collectionName, entity.links[key])
+          .then(function (result) {
             expandWithResult(entity, key, result);
             return result;
         }, function (err) {
