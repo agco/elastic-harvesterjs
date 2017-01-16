@@ -1,6 +1,4 @@
 var should = require('should');
-var _ = require('lodash');
-var request = require('supertest');
 var Promise = require('bluebird');
 
 describe("Unit test ElasticHarvester", function () {
