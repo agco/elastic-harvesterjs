@@ -12,6 +12,7 @@ Apart from that it also provides a number of helper functions to synchronize har
 
 Find useful elastic-search tools as well as their documentation in /non-functionals.
 
+Find documentation for querying elasticharvester-powered endpoints [here](https://github.com/agco/agco-json-api-profiles/blob/master/public/search-profile.md)
 
 ## Features
 
