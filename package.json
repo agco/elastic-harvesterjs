@@ -21,7 +21,6 @@
     "i": "~0.3.2",
     "joi": "^6.4.3",
     "lodash": "~2.4.1",
-    "mongoose": "3.8.12",
     "request": "2.40.0",
     "underscore.string": "~2.3.2",
     "woodman": "1.1.x"
