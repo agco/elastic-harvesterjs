@@ -4,9 +4,9 @@ var _ = require('lodash');
 var autoUpdateInputGenerator = new (require("../autoUpdateInputGenerator"))();
 
 describe('autoUpdateInputGenerator', function () {
-    it('should be able to scaffold the input for autoUpdates of a harvestApp\'s schema', function (done) {
-
-        return autoUpdateInputGenerator.generateInput(this.harvesterApp, "people", "generated.test-created.input.json").then(function (results) {
+    it('should be able to scaffold the input for autoUpdates of a harvestApp\'s schema', function () {
+        return autoUpdateInputGenerator.generateInput(this.harvesterApp, "people", "generated.test-created.input.json")
+        .then(function (results) {
             var expectedResults = {
                 "links.pets.id": "pet",
                 "links.pets.toys.id": "toy",
@@ -25,7 +25,6 @@ describe('autoUpdateInputGenerator', function () {
                 should.exist(results[key]);
                 results[key].should.equal(value);
             });
-            done();
         });
     });
 });
