@@ -1,56 +1,61 @@
-var should = require('should');
-var _ = require('lodash');
-var Promise = require('bluebird');
-var request = require('supertest');
+'use strict';
 
-var seeder = require('./seeder.js');
+const should = require('should');
+const _ = require('lodash');
+const Promise = require('bluebird');
+const request = require('supertest');
 
-describe('resources', function () {
+const seeder = require('./seeder.js');
 
-    var config, ids;
-    var collections = ['people', 'pets', 'toys'];
-    before(function () {
-        config = this.config;
-        this.timeout(config.esIndexWaitTime + 1000);
-        var seederInstance = seeder(this.harvesterApp);
-        return seederInstance.dropCollectionsAndSeed.apply(seederInstance, collections).then(function (result) {
-            ids = result;
-        });
+describe('resources', () => {
+  let config;
+  let ids;
+  const collections = ['people', 'pets', 'toys'];
+  before(function accessMochaThis() {
+    config = this.config;
+    this.timeout(config.esIndexWaitTime + 1000);
+    const seederInstance = seeder(this.harvesterApp);
+    return seederInstance.dropCollectionsAndSeed.apply(seederInstance, collections).then((result) => {
+      ids = result;
     });
+  });
 
-    describe('getting a list of resources', function () {
-        _.each(collections, function (collectionName) {
-            it('in collection "' + collectionName + '"', function (done) {
-                request(config.baseUrl).get('/' + collectionName).expect('Content-Type', /json/).expect(200).end(function (error, response) {
-                    should.not.exist(error);
-                    var body = JSON.parse(response.text);
-                    ids[collectionName].forEach(function (id) {
-                        _.contains(_.pluck(body[collectionName], 'id'), id).should.equal(true);
-                    });
-                    done();
+  describe('getting a list of resources', () => {
+    _.each(collections, (collectionName) => {
+      it(`in collection "${collectionName}"`, (done) => {
+        request(config.baseUrl)
+          .get(`/${collectionName}`).expect('Content-Type', /json/).expect(200).end((error, response) => {
+            should.not.exist(error);
+            const body = JSON.parse(response.text);
+            ids[collectionName].forEach((id) => {
+              _.contains(_.pluck(body[collectionName], 'id'), id).should.equal(true);
+            });
+            done();
+          });
+      });
+    });
+  });
+
+  describe('getting each individual resource', () => {
+    _.each(collections, (collectionName) => {
+      it(`in collection "${collectionName}"`, (done) => {
+        Promise.all(ids[collectionName].map((id) => {
+          return new Promise((resolve) => {
+            request(config.baseUrl)
+              .get(`/${collectionName}/${id}`).expect('Content-Type', /json/).expect(200).end((error, response) => {
+                should.not.exist(error);
+                const body = JSON.parse(response.text);
+                body[collectionName].forEach((resource) => {
+                  (resource.id).should.equal(id);
                 });
-            });
-        });
+                resolve();
+              });
+          });
+        }))
+          .then(() => {
+            done();
+          });
+      });
     });
-
-    describe('getting each individual resource', function () {
-        _.each(collections, function (collectionName) {
-            it('in collection "' + collectionName + '"', function (done) {
-                Promise.all(ids[collectionName].map(function (id) {
-                        return new Promise(function (resolve) {
-                            request(config.baseUrl).get('/' + collectionName + '/' + id).expect('Content-Type', /json/).expect(200).end(function (error, response) {
-                                should.not.exist(error);
-                                var body = JSON.parse(response.text);
-                                body[collectionName].forEach(function (resource) {
-                                    (resource.id).should.equal(id);
-                                });
-                                resolve();
-                            });
-                        });
-                    })).then(function () {
-                        done();
-                    });
-            });
-        });
-    });
+  });
 });

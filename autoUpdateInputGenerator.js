@@ -1,14 +1,14 @@
-var inflect= require('i')();
-var _ = require('lodash');
-var Promise = require('bluebird');
-var fs = Promise.promisifyAll(require("fs"));
-var options = {
-    adapter: 'mongodb',
-    connectionString: "mongodb://127.0.0.1:27017/testDB",
-    db: 'testDB',
-    inflect: true
+const inflect = require('i')();
+const _ = require('lodash');
+const Promise = require('bluebird');
+const fs = Promise.promisifyAll(require('fs'));
+const options = {
+  adapter: 'mongodb',
+  connectionString: 'mongodb://127.0.0.1:27017/testDB',
+  db: 'testDB',
+  inflect: true
 };
-var runningAsScript = !module.parent;
+const runningAsScript = !module.parent;
 
 /*
  *** Elastic-Search autoUpdateInputGenerator. ***
@@ -22,96 +22,93 @@ var runningAsScript = !module.parent;
  */
 
 
-function InputGenerator(){
+function InputGenerator() {
 }
 
 
-InputGenerator.prototype.generateInput=function(harvest_app,pov,outputFile){
-    var _this=this;
-    if(_.isString(harvest_app)){
-        harvest_app = require(harvest_app)(options);
-    }else{
-        harvest_app = Promise.resolve(harvest_app);
-    }
-    return harvest_app
-        .catch() //harvest_app doesn't have to work perfectly; we just need its schemas.
-        .then(function(harvest_app){
-            return _this.make(harvest_app,pov);
-        })
-        .then(function(mappingData){
-            if(outputFile){
-                console.log('Saving mapping to '+outputFile);
-                return fs.writeFileAsync(outputFile,JSON.stringify(mappingData, null, 4)).then(function () {
-                    console.log('Saved.');
+InputGenerator.prototype.generateInput = function (harvest_app, pov, outputFile) {
+  const _this = this;
+  if (_.isString(harvest_app)) {
+    harvest_app = require(harvest_app)(options);
+  } else {
+    harvest_app = Promise.resolve(harvest_app);
+  }
+  return harvest_app
+    .catch() // harvest_app doesn't have to work perfectly; we just need its schemas.
+    .then((harvest_app) => {
+      return _this.make(harvest_app, pov);
+    })
+    .then((mappingData) => {
+      if (outputFile) {
+        console.log(`Saving mapping to ${outputFile}`);
+        return fs.writeFileAsync(outputFile, JSON.stringify(mappingData, null, 4)).then(() => {
+          console.log('Saved.');
 
-                    return mappingData;
-                }).error(function (e) {
-                    console.error("Unable to save file, because: ", e.message);
-                });
-            }else{
-                console.log('Generated Mapping: ');
-                console.log(JSON.stringify(mappingData,null,4));
-                return mappingData;
-            }
-        })
-};
-
-InputGenerator.prototype.make = function(harvest_app,pov){
-
-    var schemaName = inflect.singularize(pov);
-    var startingSchema = harvest_app._schema[schemaName];
-
-    var maxDepth=3;
-    var depth=0;
-
-    var retVal = {};
-
-    var path ="links";
-
-    function getNextLevelSchema(propertyName,propertyValue,path,depth) {
-        if(depth==maxDepth){
-            return;
-        }
-        retVal[path+".id"]=propertyValue;
-        harvest_app._schema[propertyValue] && getLinkedSchemas(harvest_app._schema[propertyValue],path,depth);
-    }
-
-    function getLinkedSchemas(startingSchema,path,depth){
-        var newPath;
-        if (depth>=maxDepth){
-            console.warn("[Elastic-harvest] Graph depth of "+depth+" exceeds "+maxDepth+". Graph dive halted prematurely - please investigate.");//harvest schema may have circular references.
-            return;
-        }
-
-        depth++;
-        _.each(startingSchema,function(propertyValue,propertyName){
-            newPath=path+"."+propertyName;
-            if(typeof propertyValue!="function") {
-                if(_.isString(propertyValue)) {
-                    getNextLevelSchema(propertyName,propertyValue,newPath,depth);
-                }else if (_.isArray(propertyValue)){
-                    if(_.isString(propertyValue[0])){
-                        getNextLevelSchema(propertyName,propertyValue[0],newPath,depth);
-                    }else{
-                        getNextLevelSchema(propertyName,propertyValue[0].ref,newPath,depth);
-                    }
-                }else if (_.isObject(propertyValue)){
-                    getNextLevelSchema(propertyName,propertyValue.ref,newPath,depth);
-                }
-
-            }
+          return mappingData;
+        }).error((e) => {
+          console.error('Unable to save file, because: ', e.message);
         });
-        return path;
-    };
+      }
+      console.log('Generated Mapping: ');
+      console.log(JSON.stringify(mappingData, null, 4));
+      return mappingData;
+    });
+};
 
-    getLinkedSchemas(startingSchema,path,depth);
-    return retVal;
+InputGenerator.prototype.make = function (harvest_app, pov) {
+  const schemaName = inflect.singularize(pov);
+  const startingSchema = harvest_app._schema[schemaName];
+
+  const maxDepth = 3;
+  const depth = 0;
+
+  const retVal = {};
+
+  const path = 'links';
+
+  function getNextLevelSchema(propertyName, propertyValue, path, depth) {
+    if (depth == maxDepth) {
+      return;
+    }
+    retVal[`${path}.id`] = propertyValue;
+    harvest_app._schema[propertyValue] && getLinkedSchemas(harvest_app._schema[propertyValue], path, depth);
+  }
+
+  function getLinkedSchemas(startingSchema, path, depth) {
+    let newPath;
+    if (depth >= maxDepth) {
+      console.warn(`[Elastic-harvest] Graph depth of ${depth} exceeds ${maxDepth}. Graph dive halted prematurely - please investigate.`);// harvest schema may have circular references.
+      return;
+    }
+
+    depth++;
+    _.each(startingSchema, (propertyValue, propertyName) => {
+      newPath = `${path}.${propertyName}`;
+      if (typeof propertyValue !== 'function') {
+        if (_.isString(propertyValue)) {
+          getNextLevelSchema(propertyName, propertyValue, newPath, depth);
+        } else if (_.isArray(propertyValue)) {
+          if (_.isString(propertyValue[0])) {
+            getNextLevelSchema(propertyName, propertyValue[0], newPath, depth);
+          } else {
+            getNextLevelSchema(propertyName, propertyValue[0].ref, newPath, depth);
+          }
+        } else if (_.isObject(propertyValue)) {
+          getNextLevelSchema(propertyName, propertyValue.ref, newPath, depth);
+        }
+      }
+    });
+    return path;
+  }
+
+  getLinkedSchemas(startingSchema, path, depth);
+  return retVal;
 };
 
 
-if(runningAsScript){
-    var inputGenerator = new InputGenerator();
-    inputGenerator.generateInput(process.argv[2], process.argv[3], process.argv[4]);
-}else{
-    module.exports=InputGenerator;
+if (runningAsScript) {
+  const inputGenerator = new InputGenerator();
+  inputGenerator.generateInput(process.argv[2], process.argv[3], process.argv[4]);
+} else {
+  module.exports = InputGenerator;
 }

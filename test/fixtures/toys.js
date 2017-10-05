@@ -1,10 +1,10 @@
-module.exports = (function () {
-    return [
-        {
-            "name": "bear"
-        },
-        {
-            "name": "snake"
-        }
-    ];
-}());
+'use strict';
+
+module.exports = [
+  {
+    name: 'bear'
+  },
+  {
+    name: 'snake'
+  }
+];

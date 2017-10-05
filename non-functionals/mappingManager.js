@@ -1,11 +1,12 @@
-var Promise = require('bluebird');
-var _ = require('lodash');
-var _s = require('underscore.string');
-var $http = require('http-as-promised');
-var ElasticHarvester = require("../elastic-harvester");
+'use strict';
 
-var permittedOptions = ["get","add","delete","update"];
-var runningAsScript = !module.parent;
+const _ = require('lodash');
+const _s = require('underscore.string');
+const $http = require('http-as-promised');
+const ElasticHarvester = require('../elastic-harvester');
+
+const permittedOptions = ['get', 'add', 'delete', 'update'];
+const runningAsScript = !module.parent;
 
 /*
 
@@ -28,85 +29,85 @@ DELETE (destructive)
 #Usage: node mappingManager.js delete http://localhost:9200 dealer-api
  */
 
-function MappingManager(option,esUrl,esIndex,mappingType,mappingFile,harvesterApp){
-    this.option = option || process.env.OPTION;
-    this.esUrl = esUrl || process.env.ES_URL;
-    this.esIndex = esIndex  || process.env.ES_INDEX;
-    this.mappingType = mappingType || process.env.MAPPING_TYPE;
-    this.mappingFile = mappingFile || process.env.ES_MAPPING;
-    this.es = new ElasticHarvester(harvesterApp,this.esUrl,this.esIndex,this.mappingType);
+function MappingManager(option, esUrl, esIndex, mappingType, mappingFile, harvesterApp) {
+  this.option = option || process.env.OPTION;
+  this.esUrl = esUrl || process.env.ES_URL;
+  this.esIndex = esIndex || process.env.ES_INDEX;
+  this.mappingType = mappingType || process.env.MAPPING_TYPE;
+  this.mappingFile = mappingFile || process.env.ES_MAPPING;
+  this.es = new ElasticHarvester(harvesterApp, this.esUrl, this.esIndex, this.mappingType);
 
-    if(!_.contains(permittedOptions,this.option)){
-        throw new Error("Option '"+this.option+"' is not in the list of permitted options: ("+ permittedOptions.join(",")+")");
-    }
+  if (!_.contains(permittedOptions, this.option)) {
+    throw new Error(`Option '${this.option}' is not in the list of permitted options: (${permittedOptions.join(',')})`);
+  }
 }
 
-MappingManager.prototype.update= function(){
-    console.log("Updating elastic-search mapping.");
-    console.warn("Note that this will cause data loss.");
-    var _this=this;
-    return this.es.deleteIndex()
-        .then(function(resp){
-            console.log(resp);
-            return _this.es.initializeMapping(getMapping(_this.mappingFile))
-        }).then(function(resp){
-            console.log(resp);
-        })
+MappingManager.prototype.update = function update() {
+  console.log('Updating elastic-search mapping.');
+  console.warn('Note that this will cause data loss.');
+  const _this = this;
+  return this.es.deleteIndex()
+    .then((resp) => {
+      console.log(resp);
+      return _this.es.initializeMapping(getMapping(_this.mappingFile));
+    }).then((resp) => {
+      console.log(resp);
+    });
 };
 
-MappingManager.prototype.delete= function(){
-    console.log("Deleting elastic-search mapping.");
-    return $http.del(this.esUrl+'/'+this.esIndex+'/'+this.mappingType+'/_mapping',{json:{}})
-        .spread(function(res,body){
-            console.log(JSON.stringify(body,null,4));
-        })
-        .catch(function(e){
-            console.warn(e);
-        });
+MappingManager.prototype.delete = function _delete() {
+  console.log('Deleting elastic-search mapping.');
+  return $http.del(`${this.esUrl}/${this.esIndex}/${this.mappingType}/_mapping`, { json: {} })
+    .spread((res, body) => {
+      console.log(JSON.stringify(body, null, 4));
+    })
+    .catch((e) => {
+      console.warn(e);
+    });
 };
 
-MappingManager.prototype.get= function(){
-    console.log("Getting elastic-search mapping.");
-    return $http.get(this.esUrl+'/'+this.esIndex+'/_mapping',{json:{}})
-        .spread(function(res,body){
-            console.log(JSON.stringify(body,null,4));
-        })
-        .catch(function(e){
-            console.warn(e);
-        });
+MappingManager.prototype.get = function get() {
+  console.log('Getting elastic-search mapping.');
+  return $http.get(`${this.esUrl}/${this.esIndex}/_mapping`, { json: {} })
+    .spread((res, body) => {
+      console.log(JSON.stringify(body, null, 4));
+    })
+    .catch((e) => {
+      console.warn(e);
+    });
 };
 
-function getMapping(mappingFile){
-
-    var mapping;
-    if(mappingFile==undefined){
-        throw new Error("Please specify a mapping file to add")
+function getMapping(mappingFile) {
+  let mapping;
+  if (mappingFile === undefined) {
+    throw new Error('Please specify a mapping file to add');
+  }
+  try {
+    mapping = require(mappingFile);
+  } catch (e) {
+    if (_s.startsWith(e.message, 'Cannot find module')) {
+      throw new Error("Couldn't find your mapping file on disk.");
+    } else {
+      throw e;
     }
-    try{
-        mapping = require(mappingFile);
-    }catch(e){
-        if (_s.startsWith(e.message,"Cannot find module")){
-            throw new Error("Couldn't find your mapping file on disk.");
-        }else {
-            throw e;
-        }
-    }
-    return mapping;
+  }
+  return mapping;
 }
 
 
-MappingManager.prototype.add= function(){
-    console.log("Adding elastic-search mapping.");
-    return this.es.initializeMapping(getMapping(this.mappingFile))
-        .then(function(resp){
-            console.log(resp);
-        })
+MappingManager.prototype.add = function add() {
+  console.log('Adding elastic-search mapping.');
+  return this.es.initializeMapping(getMapping(this.mappingFile))
+    .then((resp) => {
+      console.log(resp);
+    });
 };
 
-if(runningAsScript){
-    var mappingManager = new MappingManager( process.argv[2], process.argv[3], process.argv[4], process.argv[5], process.argv[6]);
-    mappingManager[mappingManager.option]();
-}else{
-    module.exports=MappingManager;
+if (runningAsScript) {
+  const mappingManager = new MappingManager(process.argv[2], process.argv[3], process.argv[4], process.argv[5],
+    process.argv[6]);
+  mappingManager[mappingManager.option]();
+} else {
+  module.exports = MappingManager;
 }
 
