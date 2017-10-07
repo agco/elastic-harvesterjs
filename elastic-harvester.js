@@ -1,3 +1,6 @@
+'use strict';
+
+// dependencies
 const request = require('request');
 const Promise = require('bluebird');
 const requestAsync = Promise.promisify(require('request'));
@@ -9,52 +12,65 @@ const Util = require('./Util');
 const autoUpdateInputGenerator = new (require('./autoUpdateInputGenerator'))();
 const SampleScript = require('./lib/scripts/sampler');
 const sendError = require('harvesterjs').sendError;
-const JSONAPI_Error = require('harvesterjs').JSONAPI_Error;
+const JsonApiError = require('harvesterjs').JSONAPI_Error;
 const Cache = require('./lib/singletonAdapterCache');
-
-// Bonsai wants us to only send 1 ES query at a time, for POSTs/PUTs. Later on we can add more pools for other requests if needed.
 const http = require('http');
+
+
+// Bonsai wants us to only send 1 ES query at a time, for POSTs/PUTs. Later on we can add more pools for other requests
+// if needed.
 const postPool = new http.Agent();
 postPool.maxSockets = 1;
 
-const DEFAULT_AGGREGATION_LIMIT = 0;// 0=>Integer.MAX_VALUE
-const DEFAULT_TOP_HITS_AGGREGATION_LIMIT = 10; // Cannot be zero. NOTE: Default number of responses in top_hit aggregation is 10.
-const DEFAULT_SIMPLE_SEARCH_LIMIT = 1000; // simple searches don't specify a limit, and are only used internally for autoupdating
+// 0 => Integer.MAX_VALUE
+const DEFAULT_AGGREGATION_LIMIT = 0;
+
+// Cannot be zero. NOTE: Default number of responses in top_hit aggregation is 10.
+const DEFAULT_TOP_HITS_AGGREGATION_LIMIT = 10;
+
+// simple searches don't specify a limit, and are only used internally for autoupdating
+const DEFAULT_SIMPLE_SEARCH_LIMIT = 1000;
 const defaultOptions = {
   asyncInMemory: false,
   graphDepth: {
     default: 3
   }
 };
-function ElasticHarvest(harvest_app, es_url, index, type, options) {
+
+
+function ElasticHarvest(harvestApp, esUrl, index, type, options) {
   console.warn('[Elastic-Harvest] delete functionality does not work with ElasticSearch 2.x or greater.');
   const _this = this;
-  if (harvest_app) {
-    this.collectionLookup = getCollectionLookup(harvest_app, type);
-    this.autoUpdateInput = autoUpdateInputGenerator.make(harvest_app, type);
+
+  if (harvestApp) {
+    this.collectionLookup = getCollectionLookup(harvestApp, type);
+    this.autoUpdateInput = autoUpdateInputGenerator.make(harvestApp, type);
     this.invertedAutoUpdateInput = generateUpdateMap(this.autoUpdateInput);
-    this.adapter = harvest_app.adapter;
-    this.harvest_app = harvest_app;
-    Cache.initCache(harvest_app.adapter);
+    this.adapter = harvestApp.adapter;
+    this.harvest_app = harvestApp;
+    Cache.initCache(harvestApp.adapter);
     this.singletonCache = Cache.getInstance();
   } else {
     console.warn('[Elastic-Harvest] Using elastic-harvester without a harvest-app. Functionality will be limited.');
   }
-  this.es_url = es_url;
+  this.es_url = esUrl;
   this.index = index;
   this.type = type;
   this.options = _.merge(defaultOptions, options);
 
   /** SEARCH RELATED **/
-  this.route = function (req, res, next) {
+  this.route = function route(req, res, next) {
     const predicates = [];
     let nestedPredicates = [];
     const geoPredicate = {};
     let sortParams = req.query.sort;
+
     sortParams && (sortParams = sortParams.split(','));
 
-    let reservedQueryTerms = ['aggregations', 'aggregations.fields', 'include', 'limit', 'offset', 'sort', 'fields', 'script', 'script.maxSamples'];
+    let reservedQueryTerms = ['aggregations', 'aggregations.fields', 'include', 'limit', 'offset', 'sort', 'fields',
+      'script', 'script.maxSamples'];
     reservedQueryTerms = reservedQueryTerms.concat(getAggregationFields(req.query));
+
     const reservedQueryTermLookup = Util.toObjectLookup(reservedQueryTerms);
 
     _.each(req.query, (value, key) => {
@@ -75,7 +91,7 @@ function ElasticHarvest(harvest_app, es_url, index, type, options) {
     // Support deprecated "aggregations.fields" aggregation param by converting those params to new query format
     if (req.query['aggregations.fields']) {
       const oldFields = req.query['aggregations.fields'].split(',');
-      _.each(oldFields, (oldfield, i) => {
+      _.each(oldFields, (oldfield) => {
         if (req.query.aggregations) {
           req.query.aggregations = `${req.query.aggregations},${oldfield}`;
         } else {
@@ -106,7 +122,6 @@ function ElasticHarvest(harvest_app, es_url, index, type, options) {
   function assertIsNotArray(val, property) {
     if (_.isArray(val)) {
       throw new Error(`You can't supply multiple values for '${property}'.`);
-      return false;
     }
     return true;
   }
@@ -121,28 +136,30 @@ function ElasticHarvest(harvest_app, es_url, index, type, options) {
       throw new Error(`You can't use '${aggName}' as an aggregation name multiple times!`);
     }
   }
+
   // returns an array of all protected aggregationFields
   function getAggregationFields(query, aggParam, supplimentalBanList) {
     let retVal = [];
-    !aggParam && (aggParam = 'aggregations');
-    if (!query[aggParam]) {
+    const _aggParam = aggParam || 'aggregations';
+
+    if (!query[_aggParam]) {
       return retVal;
     }
-    supplimentalBanList = supplimentalBanList || {};
+    const _supplimentalBanList = supplimentalBanList || {};
 
-    _.each(query[aggParam].split(','), (agg) => {
-      assertAggNameIsAllowed(agg, supplimentalBanList);
-      supplimentalBanList[agg] = true;
-      let type = query[`${agg}.type`];
-      !type && (type = 'terms');
-      const aggOptions = permittedAggOptions[type];
+    _.each(query[_aggParam].split(','), (agg) => {
+      assertAggNameIsAllowed(agg, _supplimentalBanList);
+      _supplimentalBanList[agg] = true;
+      let _type = query[`${agg}.type`];
+      !_type && (_type = 'terms');
+      const aggOptions = permittedAggOptions[_type];
       _.each(aggOptions, (aggOption) => {
         const expectedOptionName = `${agg}.${aggOption}`;
         retVal.push(expectedOptionName);
       });
 
       if (query[`${agg}.aggregations`]) {
-        const nestedAggFields = getAggregationFields(query, `${agg}.aggregations`, supplimentalBanList);
+        const nestedAggFields = getAggregationFields(query, `${agg}.aggregations`, _supplimentalBanList);
         retVal = retVal.concat(nestedAggFields);
       }
     });
@@ -150,11 +167,13 @@ function ElasticHarvest(harvest_app, es_url, index, type, options) {
   }
 
   function getAggregationObjects(query, aggParam) {
-    !aggParam && (aggParam = 'aggregations');
-    if (!query[aggParam]) {
+    const _aggParam = aggParam || 'aggregations';
+
+    if (!query[_aggParam]) {
       return [];
     }
-    return _.map(query[aggParam].split(','), (agg) => {
+
+    return _.map(query[_aggParam].split(','), (agg) => {
       const aggregation = {};
 
       setValueIfExists(aggregation, 'name', agg, assertIsNotArray);
@@ -181,47 +200,45 @@ function ElasticHarvest(harvest_app, es_url, index, type, options) {
   }
 
   // HarvestRoute is used to appendLinks & appendLinked.
-  this.setHarvestRoute = function (harvestRoute) {
+  this.setHarvestRoute = function setHarvestRoute(harvestRoute) {
     this.harvestRoute = harvestRoute;
   };
 
-  function getSourceObjects(aggResponse) {
-    return _.map(aggResponse.hits.hits, (esReponseObj) => {
-      return esReponseObj._source;
-    });
-  }
   // Note that this is not currently named well - it also provides the "includes" functionality to top_hits.
   function getTopHitsResult(aggResponse, aggName, esResponse, aggregationObjects) {
     const aggLookup = {};
-    (function getAggLookup(aggLookup, aggregationObjects) {
-      _.each(aggregationObjects, (aggObj) => {
-        aggLookup[aggObj.name] = aggObj;
-        aggObj.aggregations && getAggLookup(aggLookup, aggObj.aggregations);
-      });
-    }(aggLookup, aggregationObjects));
-
-
-    const linked = {};// keeps track of all linked objects. type->id->true
+    const linked = {}; // keeps track of all linked objects. type->id->true
     const typeLookup = {};
+
+    function getAggLookup(_aggLookup, _aggregationObjects) {
+      _.each(_aggregationObjects, (aggObj) => {
+        _aggLookup[aggObj.name] = aggObj;
+        aggObj.aggregations && getAggLookup(_aggLookup, aggObj.aggregations);
+      });
+    }
+
+    getAggLookup(aggLookup, aggregationObjects);
+
     // dedupes already-linked entities.
     if (aggLookup[aggName] && aggLookup[aggName].include) {
       _.each(aggLookup[aggName].include.split(','), (linkProperty) => {
         if (_this.collectionLookup[linkProperty]) {
-          const type = inflect.pluralize(_this.collectionLookup[linkProperty]);
-          typeLookup[linkProperty] = type;
+          const _type = inflect.pluralize(_this.collectionLookup[linkProperty]);
+          typeLookup[linkProperty] = _type;
 
-          esResponse.linked && _.each(esResponse.linked[type] || [], (resource, collection) => {
-            linked[type] = linked[type] || {};
-            linked[type][resource.id] = true;
+          esResponse.linked && _.each(esResponse.linked[_type] || [], (resource) => {
+            linked[_type] = linked[_type] || {};
+            linked[_type][resource.id] = true;
           });
         }
       });
     }
+
     return _.map(aggResponse.hits.hits, (esReponseObj) => {
       if (aggLookup[aggName] && aggLookup[aggName].include) {
         _.each(aggLookup[aggName].include.split(','), (linkProperty) => {
           if (typeLookup[linkProperty]) {
-            const type = typeLookup[linkProperty];
+            const _type = typeLookup[linkProperty];
 
             // if this isn't already linked, link it.
             // TODO: links may be an array of objects, so treat it that way at all times.
@@ -230,142 +247,151 @@ function ElasticHarvest(harvest_app, es_url, index, type, options) {
               const entitiesToInclude = [].concat(unexpandSubentity(esReponseObj._source.links[linkProperty]));
 
               _.each(entitiesToInclude, (entityToInclude) => {
-                const entityIsAlreadyIncluded = !!(linked[type]) && !!(linked[type][entityToInclude.id]);
+                const entityIsAlreadyIncluded = !!(linked[_type]) && !!(linked[_type][entityToInclude.id]);
                 if (!entityIsAlreadyIncluded) {
                   esResponse.linked = esResponse.linked || {};
-                  esResponse.linked[type] = esResponse.linked[type] || [];
+                  esResponse.linked[_type] = esResponse.linked[_type] || [];
 
-                  esResponse.linked[type] = esResponse.linked[type].concat(entityToInclude);
-                  linked[type] = linked[type] || {};
-                  linked[type][entityToInclude.id] = true;
+                  esResponse.linked[_type] = esResponse.linked[_type].concat(entityToInclude);
+                  linked[_type] = linked[_type] || {};
+                  linked[_type][entityToInclude.id] = true;
                 }
               });
             }
           } else {
-            console.warn(`[Elastic-Harvest] ${linkProperty} is not in collectionLookup. ${linkProperty} was either incorrectly specified by the end-user, or dev failed to include the relevant key in the lookup provided to initialize elastic-harvest.`);
+            console.warn(`[Elastic-Harvest] ${linkProperty} is not in collectionLookup. ${linkProperty} was either ` +
+              'incorrectly specified by the end-user, or dev failed to include the relevant key in the lookup ' +
+              'provided to initialize elastic-harvest.');
           }
         });
       }
+
       return unexpandEntity(esReponseObj._source);
     });
   }
 
-  function sendSearchResponse(es_results, req, res, includes, fields, aggregationObjects) {
+  function sendSearchResponse(esResults, req, res, includes, fields, aggregationObjects) {
     const initialPromise = Promise.resolve();
     let padding = undefined;
-    (process.env.NODE_ENV != 'production') && (padding = 2);
+    (process.env.NODE_ENV !== 'production') && (padding = 2);
 
     return initialPromise.then(() => {
-      const esResponseArray = getResponseArrayFromESResults(es_results, fields);
+      const esResponseArray = getResponseArrayFromESResults(esResults, fields);
       let esResponse = {};
+
       esResponse[type] = esResponseArray;
-
       _this.harvestRoute.appendLinked(esResponse, includes)
-        .then((esResponse) => {
+        .then((_esResponse) => {
           // Add in meta.aggregations field
-          if (es_results && es_results.aggregations) {
-            var createBuckets = function (terms) {
-              return _.map(terms, (term) => {
-                // 1. see if there are other terms & if they have buckets.
-                const retVal = { key: term.key, count: term.doc_count };
+          function createBuckets(terms) {
+            return _.map(terms, (term) => {
+              // 1. see if there are other terms & if they have buckets.
+              const retVal = { key: term.key, count: term.doc_count };
 
-                _.each(term, (aggResponse, responseKey) => {
-                  if (responseKey == 'key' || responseKey == 'doc_count') {
-                    return;
-                  } else if (aggResponse.buckets) {
-                    retVal[responseKey] = createBuckets(aggResponse.buckets);
-                  } else if (aggResponse.hits && aggResponse.hits.hits) {
-                    // top_hits aggs result from nested query w/o reverse nesting.
-                    retVal[responseKey] = getTopHitsResult(aggResponse, responseKey, esResponse, aggregationObjects);
-                    // to combine nested aggs w others, you have to un-nest them, & this takes up an aggregation-space.
-                  } else if (responseKey != 'reverse_nesting' && aggResponse) { // stats & extended_stats aggs
-                    // This means it's the result of a nested stats or extended stats query.
-                    if (aggResponse[responseKey]) {
-                      retVal[responseKey] = aggResponse[responseKey];
-                    } else {
-                      retVal[responseKey] = aggResponse;
-                    }
-                  } else if (responseKey == 'reverse_nesting') {
-                    _.each(aggResponse, (reverseNestedResponseProperty, reverseNestedResponseKey) => {
-                      if (reverseNestedResponseKey == 'doc_count') {
-                        return;
-                      } else if (reverseNestedResponseProperty.buckets) {
-                        retVal[reverseNestedResponseKey] = createBuckets(reverseNestedResponseProperty.buckets);
-                        // this gets a little complicated because reverse-nested then renested subdocuments are .. complicated (because the extra aggs for nesting throws things off).
-                      } else if (reverseNestedResponseProperty[reverseNestedResponseKey] && reverseNestedResponseProperty[reverseNestedResponseKey].buckets) {
-                        retVal[reverseNestedResponseKey] = createBuckets(reverseNestedResponseProperty[reverseNestedResponseKey].buckets);
-
-                        // this gets a little MORE complicated because of reverse-nested then renested top_hits aggs
-                      } else if (reverseNestedResponseProperty.hits && reverseNestedResponseProperty.hits.hits) {
-                        retVal[reverseNestedResponseKey] = getTopHitsResult(reverseNestedResponseProperty, reverseNestedResponseKey, esResponse, aggregationObjects);
-
-                        // stats & extended_stats aggs
-                      } else if (reverseNestedResponseProperty) {
-                        // This means it's the result of a nested stats or extended stats query.
-                        if (reverseNestedResponseProperty[reverseNestedResponseKey]) {
-                          retVal[reverseNestedResponseKey] = reverseNestedResponseProperty[reverseNestedResponseKey];
-                        } else {
-                          retVal[reverseNestedResponseKey] = reverseNestedResponseProperty;
-                        }
-                      }
-                    });
-                  }
-                });
-                return retVal;
-                // Todo: ended day here -> start by recursively turning out term's extra params (e.g. name)'s buckets
-              });
-            };
-
-            const createAggregations = function (es_results, esResponse, aggregationObjects) {
-              const meta = {
-                aggregations: {
-                }
-              };
-              _.forIn(es_results.aggregations, (value, key) => {
-                if (value.buckets) {
-                  // simple terms agg
-                  meta.aggregations[key] = createBuckets(value.buckets);
-                } else if (value[key] && value[key].buckets) {
-                  // nested terms agg
-                  meta.aggregations[key] = createBuckets(value[key].buckets);
-                } else if (value.hits && value.hits.hits) {
-                  // top_hits aggs result from totally un-nested query
-                  meta.aggregations[key] = getTopHitsResult(value, key, esResponse, aggregationObjects);
-                  // esResponse is what gets retuend so modify linked in that.
-                } else if (value) {
-                  // stats & extended_stats aggs
-                  if (value[key]) {
-                    // This means it's the result of a nested stats or extended stats query.
-                    meta.aggregations[key] = value[key];
+              _.each(term, (aggResponse, responseKey) => {
+                if (responseKey === 'key' || responseKey === 'doc_count') {
+                  return null;
+                } else if (aggResponse.buckets) {
+                  retVal[responseKey] = createBuckets(aggResponse.buckets);
+                } else if (aggResponse.hits && aggResponse.hits.hits) {
+                  // top_hits aggs result from nested query w/o reverse nesting.
+                  retVal[responseKey] = getTopHitsResult(aggResponse, responseKey, _esResponse, aggregationObjects);
+                  // to combine nested aggs w others, you have to un-nest them, & this takes up an aggregation-space.
+                } else if (responseKey !== 'reverse_nesting' && aggResponse) { // stats & extended_stats aggs
+                  // This means it's the result of a nested stats or extended stats query.
+                  if (aggResponse[responseKey]) {
+                    retVal[responseKey] = aggResponse[responseKey];
                   } else {
-                    meta.aggregations[key] = value;
+                    retVal[responseKey] = aggResponse;
                   }
-                }
-              });
-              return meta;
-            };
-            esResponse.meta = createAggregations(es_results, esResponse, aggregationObjects);
-          }
+                } else if (responseKey === 'reverse_nesting') {
+                  _.each(aggResponse, (reverseNestedResponseProperty, reverseNestedResponseKey) => {
+                    if (reverseNestedResponseKey === 'doc_count') {
+                      return null;
+                    } else if (reverseNestedResponseProperty.buckets) {
+                      retVal[reverseNestedResponseKey] = createBuckets(reverseNestedResponseProperty.buckets);
+                      // this gets a little complicated because reverse-nested then renested subdocuments are ..
+                      // complicated (because the extra aggs for nesting throws things off).
+                    } else if (reverseNestedResponseProperty[reverseNestedResponseKey] &&
+                        reverseNestedResponseProperty[reverseNestedResponseKey].buckets) {
+                      retVal[reverseNestedResponseKey] = createBuckets(
+                        reverseNestedResponseProperty[reverseNestedResponseKey].buckets);
 
-          // Add in meta.geo_distance
-          if (es_results && es_results.hits && es_results.hits.hits && es_results.hits.hits[0] && es_results.hits.hits[0].fields && es_results.hits.hits[0].fields.distance) {
-            esResponse.meta = esResponse.meta || {};
-            esResponse.meta.geo_distance = {};
-            _.each(es_results.hits.hits, (hit) => {
-              const distance = hit.fields.distance[0];
-              const objId = hit._id;
-              const type = hit._type;
-              esResponse.meta.geo_distance[type] = esResponse.meta.geo_distance[type] || {};
-              esResponse.meta.geo_distance[type][objId] = distance;
+                      // this gets a little MORE complicated because of reverse-nested then renested top_hits aggs
+                    } else if (reverseNestedResponseProperty.hits && reverseNestedResponseProperty.hits.hits) {
+                      retVal[reverseNestedResponseKey] = getTopHitsResult(reverseNestedResponseProperty,
+                        reverseNestedResponseKey, _esResponse, aggregationObjects);
+
+                      // stats & extended_stats aggs
+                    } else if (reverseNestedResponseProperty) {
+                      // This means it's the result of a nested stats or extended stats query.
+                      if (reverseNestedResponseProperty[reverseNestedResponseKey]) {
+                        retVal[reverseNestedResponseKey] = reverseNestedResponseProperty[reverseNestedResponseKey];
+                      } else {
+                        retVal[reverseNestedResponseKey] = reverseNestedResponseProperty;
+                      }
+                    }
+                    return null;
+                  });
+                }
+                return null;
+              });
+
+              return retVal;
             });
           }
 
-          esResponse = _this.harvestRoute.appendLinks(esResponse);
+          function createAggregations(_esResults, __esResponse, _aggregationObjects) {
+            const meta = {
+              aggregations: {
+              }
+            };
+            _.forIn(_esResults.aggregations, (value, key) => {
+              if (value.buckets) {
+                // simple terms agg
+                meta.aggregations[key] = createBuckets(value.buckets);
+              } else if (value[key] && value[key].buckets) {
+                // nested terms agg
+                meta.aggregations[key] = createBuckets(value[key].buckets);
+              } else if (value.hits && value.hits.hits) {
+                // top_hits aggs result from totally un-nested query
+                meta.aggregations[key] = getTopHitsResult(value, key, __esResponse, _aggregationObjects);
+                // __esResponse is what gets retuend so modify linked in that.
+              } else if (value) {
+                // stats & extended_stats aggs
+                if (value[key]) {
+                  // This means it's the result of a nested stats or extended stats query.
+                  meta.aggregations[key] = value[key];
+                } else {
+                  meta.aggregations[key] = value;
+                }
+              }
+            });
+            return meta;
+          }
+
+          if (esResults && esResults.aggregations) {
+            _esResponse.meta = createAggregations(esResults, _esResponse, aggregationObjects);
+          }
+
+          // Add in meta.geo_distance
+          if (esResults && esResults.hits && esResults.hits.hits && esResults.hits.hits[0] &&
+            esResults.hits.hits[0].fields && esResults.hits.hits[0].fields.distance) {
+            _esResponse.meta = _esResponse.meta || {};
+            _esResponse.meta.geo_distance = {};
+            _.each(esResults.hits.hits, (hit) => {
+              const distance = hit.fields.distance[0];
+              const objId = hit._id;
+              const _type = hit._type;
+              _esResponse.meta.geo_distance[_type] = _esResponse.meta.geo_distance[_type] || {};
+              _esResponse.meta.geo_distance[_type][objId] = distance;
+            });
+          }
 
           return res
             .set('content-type', 'application/vnd.api+json') // todo set jsonapi ct
             .status(200)
-            .send(JSON.stringify(esResponse, undefined, padding));
+            .send(JSON.stringify(_this.harvestRoute.appendLinks(_esResponse), undefined, padding));
         }, (error) => {
           console.warn(error && error.stack || error);
           esResponse = _this.harvestRoute.appendLinks(esResponse);
@@ -377,31 +403,30 @@ function ElasticHarvest(harvest_app, es_url, index, type, options) {
         });
     }).catch((error) => {
       console.error(error && error.stack || error);
-      sendError(req, res, new JSONAPI_Error({ status: 500 }));
+      sendError(req, res, new JsonApiError({ status: 500 }));
     });
   }
 
   /**
-     * Creates a custom routing query string parameter when provided with the pathToCustomRoutingKey and a map of query
-     * string parameters, it will create a custom routing query string parameter, that can be sent to elasticSearch. It
-     * return an empty string if it is unable to create one.
-     *
-     * It will validate:
-     *   * that custom routing is turned on for this type.
-     *   * the value to be used for custom routing is a string
-     *   * the string doesn't end with wildcards
-     *   * the string doesnt' have operators like ge, gt, le or lt
-     *
-     * @param pathToCustomRoutingKey  string, the path to the custom routing key
-     * @param query                   map, of query strings from the request
-     * @returns string                custom routing query string or '' if N/A
-     */
+   * Creates a custom routing query string parameter when provided with the pathToCustomRoutingKey and a map of query
+   * string parameters, it will create a custom routing query string parameter, that can be sent to elasticSearch. It
+   * return an empty string if it is unable to create one.
+   *
+   * It will validate:
+   *   * that custom routing is turned on for this type.
+   *   * the value to be used for custom routing is a string
+   *   * the string doesn't end with wildcards
+   *   * the string doesnt' have operators like ge, gt, le or lt
+   *
+   * @param pathToCustomRoutingKey  string, the path to the custom routing key
+   * @param query                   map, of query strings from the request
+   * @returns string                custom routing query string or '' if N/A
+   */
   function createCustomRoutingQueryString(pathToCustomRoutingKey, query) {
     const invalidRegexList = [/^ge=/, /^gt=/, /^ge=/, /^lt=/, /\*$/]; // array of invalid regex
     let customRoutingValue;
 
     if (!pathToCustomRoutingKey) return ''; // customRouting is not enabled for this type
-
     customRoutingValue = query[pathToCustomRoutingKey]; // fetch the value
 
     // filters like [ 'gt: '10', lt: '20' ] are not valid customRouting values but may show up
@@ -414,6 +439,7 @@ function ElasticHarvest(harvest_app, es_url, index, type, options) {
         customRoutingValue = '';
         return false;
       }
+      return true;
     });
 
     return customRoutingValue ? `routing=${customRoutingValue}` : '';
@@ -430,42 +456,50 @@ function ElasticHarvest(harvest_app, es_url, index, type, options) {
     query.offset && params.push(`from=${query.offset}`);
 
     const queryStr = `?${params.join('&')}`;
-    const es_resource = `${es_url}/${index}/${type}/_search${queryStr}`;
+    const esResource = `${esUrl}/${index}/${type}/_search${queryStr}`;
 
-    let searchPromise = $http({ url: es_resource, method: 'GET', body: esQuery });
+    let searchPromise = $http({ url: esResource, method: 'GET', body: esQuery });
 
     if (query.script === 'sampler') {
-      searchPromise = SampleScript.sample(index, type, esQuery, aggregationObjects, query, es_resource);
+      searchPromise = SampleScript.sample(index, type, esQuery, aggregationObjects, query, esResource);
     }
 
     searchPromise.spread((response) => {
-      let es_results;
-      response && response.body && (es_results = JSON.parse(response.body));
-      if (!es_results) {
+      let esResults;
+      // let error;
+      response && response.body && (esResults = JSON.parse(response.body));
+      if (!esResults) {
         throw new Error('There was no response from the server.');
-      } else if (es_results.error) {
-        es_results.error && (error = es_results.error);
-        throw new Error("Your query was malformed, so it failed. Please check the api to make sure you're using it correctly.");
+      } else if (esResults.error) {
+        // esResults.error && (error = esResults.error);
+        throw new Error('Your query was malformed, so it failed. Please check the api to make sure you\'re using it ' +
+          'correctly.');
       } else {
-        let includes = req.query.include,
-          fields = req.query.fields;
+        let includes = req.query.include;
+        let fields = req.query.fields;
+
         includes && (includes = includes.split(','));
         fields && (fields = fields.split(','));
-        // id field is required.
-        fields && fields.push('id');
-        return sendSearchResponse(es_results, req, res, includes, fields, aggregationObjects);
+        fields && fields.push('id'); // id field is required.
+
+        return sendSearchResponse(esResults, req, res, includes, fields, aggregationObjects);
       }
     })
       .catch((err) => {
         err.body && console.log('[Elastic-Harvest] Error description: ', err.body);
         console.log('[Elastic-Harvest] Error stack: ', err.stack);
-        const error = new JSONAPI_Error({ status: 400, detail: "Your query was malformed, so it failed. Please check the api to make sure you're using it correctly." });
+        const error = new JsonApiError({
+          status: 400,
+          detail: 'Your query was malformed, so it failed. Please check the api to make sure you\'re using it ' +
+          'correctly.'
+        });
         sendError(req, res, error);
       });
   }
 
   return this;
 }
+
 
 const requiredAggOptions = {
   top_hits: ['type'],
@@ -476,12 +510,16 @@ const requiredAggOptions = {
   range: ['type', 'property', 'ranges']
 };
 
+
 function assertAggregationObjectHasRequiredOptions(aggregationObject) {
   const type = aggregationObject.type || 'terms';
+
   _.each(requiredAggOptions[type], (requiredOption) => {
-    Util.assertAsDefined(aggregationObject[requiredOption], `${type} aggregations require that a '${requiredOption}' paramenter is specified.`);
+    Util.assertAsDefined(aggregationObject[requiredOption], `${type} aggregations require that a '${requiredOption}' ` +
+      'paramenter is specified.');
   });
 }
+
 
 const esDistanceFunctionLookup = {
   mi: 'arcDistanceInMiles',
@@ -492,11 +530,15 @@ const esDistanceFunctionLookup = {
   meters: 'arcDistance'
 };
 
-// Transforms an expanded ES source object to an unexpanded object
+
+/**
+ * Transforms an expanded ES source object to an unexpanded object
+ */
 function unexpandEntity(sourceObject, includeFields) {
   _.each(sourceObject.links || [], (val, key) => {
     if (!_.isArray(sourceObject.links[key])) {
-      // I know the extra .toString seems unnecessary, but sometimes val.id is already an objectId, and other times its a string.
+      // I know the extra .toString seems unnecessary, but sometimes val.id is already an objectId, and other times its
+      // a string.
       sourceObject.links[key] = val.id && val.id.toString() || val && val.toString && val.toString();
     } else {
       _.each(sourceObject.links[key], (innerVal, innerKey) => {
@@ -504,11 +546,15 @@ function unexpandEntity(sourceObject, includeFields) {
       });
     }
   });
-  includeFields && includeFields.length && (sourceObject = Util.includeFields(sourceObject, includeFields));
-  return sourceObject;
+
+  return (includeFields && includeFields.length) ? Util.includeFields(sourceObject, includeFields) : sourceObject;
 }
 
-// A sub-entity is a linked object returned by es as part of the source graph. They are expanded differently from primary entities, and must be unexpanded differently as well.
+
+/**
+ * A sub-entity is a linked object returned by es as part of the source graph. They are expanded differently from
+ * primary entities, and must be unexpanded differently as well.
+ */
 function unexpandSubentity(subEntity) {
   if (_.isArray(subEntity)) {
     _.each(subEntity, (entity, index) => {
@@ -523,68 +569,65 @@ function unexpandSubentity(subEntity) {
       }
     });
   }
+
   return subEntity;
 }
 
+
 function getResponseArrayFromESResults(results, fields) {
   const retVal = [];
+
   if (results && results.hits && results.hits.hits) {
     _.each(results.hits.hits, (hit) => {
       retVal.push(unexpandEntity(hit._source, fields));
     });
   }
+
   return retVal;
 }
 
 
-ElasticHarvest.prototype.setPathToCustomRoutingKey = function (pathToCustomRoutingKey) {
+ElasticHarvest.prototype.setPathToCustomRoutingKey = function setPathToCustomRoutingKey(pathToCustomRoutingKey) {
   if (typeof pathToCustomRoutingKey !== 'string' || pathToCustomRoutingKey === '') {
     throw new Error('pathToCustomRoutingKey must be a non empty string');
   }
   this.pathToCustomRoutingKey = pathToCustomRoutingKey;
+
   return this; // so we can chain it
 };
 
 
-ElasticHarvest.prototype.getEsQueryBody = function (predicates, nestedPredicates, geoPredicate, aggregationObjects, sortParams) {
-  let createEsQueryFragment = function (fields, queryVal) {
-    return {
-      query: {
-        query_string: {
-          fields: [fields],
-          query: queryVal
-        }
-      } };
-  };
-
-
+ElasticHarvest.prototype.getEsQueryBody = function getEsQueryBody(predicates, nestedPredicates, geoPredicate,
+  aggregationObjects, sortParams) {
   const operatorMap = {
     lt: 'lt',
     le: 'lte',
     gt: 'gt',
     ge: 'gte'
   };
-  const createMatchQueryFragment = function (field, value) {
-    let fragment,
-      actualValue,
-      operator,
-      isNotMatchQuery;
+
+  function createEsQueryFragment(field, value) {
+    let fragment;
+    let actualValue;
+    let operator;
+    let isNotMatchQuery;
+
     // ToDo: add "lenient" to support queries against numerical values.
     // Handle range queries (lt, le, gt, ge) differently.
-    if (value.indexOf('=') != -1) {
+    if (value.indexOf('=') !== -1) {
       actualValue = value.substr(3);
       operator = operatorMap[value.substr(0, 2)];
       fragment = { query: { range: {} } };
       fragment.query.range[field] = {};
       fragment.query.range[field][operator] = actualValue;
-    } else if (value.indexOf('*') != -1) {
+    } else if (value.indexOf('*') !== -1) {
       fragment = { query: { wildcard: {} } };
       fragment.query.wildcard[field] = value;
     } else {
       if (_.isArray(value)) {
         // see if values are range queries
         _.each(value, (innerFieldValue) => {
-          if (innerFieldValue.indexOf('=') != -1) {
+          if (innerFieldValue.indexOf('=') !== -1) {
             actualValue = innerFieldValue.substr(3);
             operator = operatorMap[innerFieldValue.substr(0, 2)];
             fragment = fragment || { query: { range: {} } };
@@ -593,13 +636,11 @@ ElasticHarvest.prototype.getEsQueryBody = function (predicates, nestedPredicates
             isNotMatchQuery = true;
           }
         });
-        if (isNotMatchQuery) {return fragment;}
+        if (isNotMatchQuery) return fragment;
       }
-
       let val = value.replace(/,/g, ' ');
-
       if (value.indexOf(',') > -1) {
-        chunks = value.split(',');
+        const chunks = value.split(',');
         val = {
           should: chunks.map((chunk) => {
             const match = {};
@@ -615,17 +656,17 @@ ElasticHarvest.prototype.getEsQueryBody = function (predicates, nestedPredicates
         fragment.query.match[field] = { query: val, lenient: true };
       }
     }
-    return fragment;
-  };
-  createEsQueryFragment = createMatchQueryFragment;
 
-  /*-
-     * Groups predicates at their lowest match level to simplify creating nested queries
-     */
-  const groupNestedPredicates = function (nestedPredicates) {
+    return fragment;
+  }
+
+  /**
+   * Groups predicates at their lowest match level to simplify creating nested queries
+   */
+  function groupNestedPredicates(_nestedPredicates) {
     let maxDepth = 0;
     const nestedPredicateObj = {};
-    const nestedPredicateParts = _.map(nestedPredicates, (predicateArr) => {
+    const nestedPredicateParts = _.map(_nestedPredicates, (predicateArr) => {
       const predicate = predicateArr[0];
       const retVal = predicate.split('.');
       nestedPredicateObj[predicate] = predicateArr[1];
@@ -633,7 +674,8 @@ ElasticHarvest.prototype.getEsQueryBody = function (predicates, nestedPredicates
       return retVal;
     });
     const groups = {};
-    for (var i = 0; i < maxDepth; i++) {
+
+    for (let i = 0; i < maxDepth; i++) {
       groups[i] = _.groupBy(nestedPredicateParts, (predicateParts) => {
         let retval = '';
         for (let j = 0; j < i + 1; j++) {
@@ -646,8 +688,9 @@ ElasticHarvest.prototype.getEsQueryBody = function (predicates, nestedPredicates
     const completed = {};
     const levels = {};
     const paths = {};
+
     // Simplifies the grouping
-    for (var i = maxDepth - 1; i >= 0; i--) {
+    for (let i = maxDepth - 1; i >= 0; i--) {
       _.each(groups[i], (values, key) => {
         _.each(values, (value) => {
           const strKey = value.join('.');
@@ -666,33 +709,32 @@ ElasticHarvest.prototype.getEsQueryBody = function (predicates, nestedPredicates
         });
       });
     }
-    return { groups: levels, paths, nestedPredicateObj };
-  };
 
-  const createNestedPredicateFragment = function (grouping) {
-    const basicQuery = _.map(grouping.groups, (group, index) => {
+    return { groups: levels, paths, nestedPredicateObj };
+  }
+
+  function createNestedPredicateFragment(grouping) {
+    const _basicQuery = _.map(grouping.groups, (group, index) => {
       // add basic terms, then for each predicate in the level group add extra terms.
       const path = grouping.paths[index];
-      const qObj =
-            {
-              nested: {
-                path,
-                query: {
-                  bool: {
-                    must: []
-                  }
-                }
-              }
-            };
+      const qObj = {
+        nested: {
+          path,
+          query: {
+            bool: {
+              must: []
+            }
+          }
+        }
+      };
 
       _.each(group, (groupling) => {
         const value = grouping.nestedPredicateObj[groupling];
         const key = groupling;
         const localPath = groupling.substr(0, groupling.lastIndexOf('.'));
-
         const matchObj = createEsQueryFragment(key, value).query;
 
-        if (localPath == path) {
+        if (localPath === path) {
           qObj.nested.query.bool.must.push(matchObj);
         } else {
           qObj.nested.query.bool.must.push({
@@ -703,59 +745,68 @@ ElasticHarvest.prototype.getEsQueryBody = function (predicates, nestedPredicates
           });
         }
       });
+
       return qObj;
     });
 
-    const isExpandableQuery = function (basicQuery) {
+    function isExpandableQuery(basicQuery) {
       let retVal = false;
       _.each(basicQuery, (query) => {
         retVal = retVal || isAlongExpandableQueryLine(query);
       });
-      return retVal;
-    };
 
-    const getMatchQuery = function (innerQuery) {
+      return retVal;
+    }
+
+    function getMatchQuery(innerQuery) {
       if (innerQuery.match) {
         return innerQuery.match;
       } else if (innerQuery.nested && innerQuery.nested.query && innerQuery.nested.query.match) {
         return innerQuery.nested.query.match;
       }
+
       return false;
-    };
-    const getRangeQuery = function (innerQuery) {
+    }
+
+    function getRangeQuery(innerQuery) {
       if (innerQuery.range) {
         return innerQuery.range;
       } else if (innerQuery.nested && innerQuery.nested.query && innerQuery.nested.query.range) {
         return innerQuery.nested.query.range;
       }
-      return false;
-    };
 
-    var isAlongExpandableQueryLine = function (query) {
+      return false;
+    }
+
+    function isAlongExpandableQueryLine(query) {
       let retVal = false;
-      _.each(query.nested.query.bool.must, (innerQuery, mustI) => {
-        let rangeObj;
+      _.each(query.nested.query.bool.must, (innerQuery) => {
         const matchObj = getMatchQuery(innerQuery);
+
         if (matchObj) {
           const values = _.values(matchObj);
           if (_.isArray(values[0])) {
             retVal = true;
           }
         } else {
-          rangeObj = getRangeQuery(innerQuery);
+          getRangeQuery(innerQuery);
           retVal = false;
         }
       });
-      return retVal;
-    };
 
-    // Handles the case where multiple values are submitted for one key
-    // This transforms a query that tries to match something like {match:{links.husband.name:["Peter","Solomon"]} to one that
-    // instead duplicates all parts of the query and splits it so each match term has it's own search query. This was done so
-    // searches would not be unduely limited by the nested level.
-    const getExpandedQuery = function (basicQuery) {
+      return retVal;
+    }
+
+    /**
+     * Handles the case where multiple values are submitted for one key
+     * This transforms a query that tries to match something like {match:{links.husband.name:["Peter","Solomon"]} to
+     * one that instead duplicates all parts of the query and splits it so each match term has it's own search query.
+     * This was done so searches would not be unduely limited by the nested level.
+     */
+    function getExpandedQuery(basicQuery) {
       let expandedQuery = [];
       const needsExpandedQuery = isExpandableQuery(basicQuery);
+
       if (!needsExpandedQuery) {
         expandedQuery = basicQuery;
       } else {
@@ -766,7 +817,9 @@ ElasticHarvest.prototype.getEsQueryBody = function (predicates, nestedPredicates
             const matchObj = innerQuery.nested.query.match;
             const values = _.values(matchObj);
             if (values.length > 1) {
-              console.warn("[Elastic-Harvest] Our match query isn't supposed to have multiple keys in it. We expect something like {match:{name:'Peter'}}, and you've constructed a match like {match:{name:'Peter',type:'person'}}");
+              console.warn('[Elastic-Harvest] Our match query isn\'t supposed to have multiple keys in it. We expect ' +
+                'something like { match: { name: "Peter " } }, and you\'ve constructed a match like { match: { name: ' +
+                '"Peter", type: "person" } }');
               throw Error('The query expansion algorithm does not expect this query form.');
             }
             if (_.isArray(values[0])) {
@@ -787,27 +840,26 @@ ElasticHarvest.prototype.getEsQueryBody = function (predicates, nestedPredicates
       }
 
       return expandedQuery;
-    };
+    }
 
-    const expandedQuery = getExpandedQuery(basicQuery);
-    if (expandedQuery == basicQuery) {
+    const expandedQuery = getExpandedQuery(_basicQuery);
+    if (expandedQuery === _basicQuery) {
       return expandedQuery;
     } else if (isExpandableQuery(expandedQuery)) {
       return getExpandedQuery(expandedQuery);
     }
     return expandedQuery;
-  };
+  }
   const nestedPredicatesESFragment = createNestedPredicateFragment(groupNestedPredicates(nestedPredicates));
 
-  const createGeoPredicateESFragment = function (geoPredicate) {
+  function createGeoPredicateESFragment(_geoPredicate) {
     return {
       geo_distance: {
-        distance: geoPredicate.distance,
-        location: [Number(geoPredicate.lon), Number(geoPredicate.lat)]
+        distance: _geoPredicate.distance,
+        location: [Number(_geoPredicate.lon), Number(_geoPredicate.lat)]
       }
     };
-  };
-
+  }
 
   let predicatesESFragment = _.map(predicates, (predicate) => {
     const key = predicate.key;
@@ -824,16 +876,12 @@ ElasticHarvest.prototype.getEsQueryBody = function (predicates, nestedPredicates
     return createEsQueryFragment(key, value);
   });
   predicatesESFragment = _.flatten(predicatesESFragment);
-
   const geoPredicateExists = (Object.keys(geoPredicate).length > 2);
-
   geoPredicateExists && predicatesESFragment.push(createGeoPredicateESFragment(geoPredicate));
   const allPredicateFragments = nestedPredicatesESFragment.concat(predicatesESFragment);
-
   const filter = {
     and: allPredicateFragments
   };
-
   const composedESQuery = {
     query: {
       filtered: {
@@ -841,16 +889,13 @@ ElasticHarvest.prototype.getEsQueryBody = function (predicates, nestedPredicates
       }
     }
   };
+
   if (predicates.length) {
-    /**
-         * If filtered query has only filter defined then scoring is off,
-         * so create query_string query as sub part of filtered query to enable result scoring.
-         */
+    // If filtered query has only filter defined then scoring is off,
+    // so create query_string query as sub part of filtered query to enable result scoring.
     const mappedPredicates = _.reduce(predicates, (result, item) => {
-      /**
-             * Skip all predicates that are functions or contain special characters, i.e. "=" to filter out stuff like ?speed=gt=1
-             * which will go to filter anyway and does not influence scoring
-             */
+      // Skip all predicates that are functions or contain special characters, i.e. "=" to filter out stuff like
+      // ?speed=gt=1 which will go to filter anyway and does not influence scoring
       if (!item.value || !(item.value.match instanceof Function) || item.value.match(/[^a-zA-Z0-9-_ ]/)) {
         return result;
       }
@@ -858,12 +903,11 @@ ElasticHarvest.prototype.getEsQueryBody = function (predicates, nestedPredicates
       if (value) {
         return `${result + (result ? ' AND ' : ' ')}(${item.key}:${value})`;
       }
+
       return result;
     }, '');
     if (mappedPredicates.trim().length) {
-      /**
-             * Apply query_string query only if anything meaningful to such query is found in predicates
-             */
+      // Apply query_string query only if anything meaningful to such query is found in predicates
       composedESQuery.query.filtered.query = { query_string: { query: mappedPredicates } };
     }
   }
@@ -875,10 +919,10 @@ ElasticHarvest.prototype.getEsQueryBody = function (predicates, nestedPredicates
     const isDeepAggregation = (aggregationObject.property.lastIndexOf('.') > 0);
     const path = aggregationObject.property.substr(0, aggregationObject.property.lastIndexOf('.'));
     const shallowAggs = {};
+
     shallowAggs[aggregationObject.type] = {
       field: aggregationObject.property
     };
-
     _.each(extraShallowValues || [], (extraShallowValue, extraShallowKey) => {
       shallowAggs[aggregationObject.type][extraShallowKey] = extraShallowValue;
     });
@@ -895,39 +939,42 @@ ElasticHarvest.prototype.getEsQueryBody = function (predicates, nestedPredicates
     } else {
       aggs[aggregationObject.name] = shallowAggs;
     }
+
     return isDeepAggregation;
   }
 
-  function getAggregationQuery(aggregationObjects) {
+  function getAggregationQuery(_aggregationObjects) {
     const aggs = {};
-    _.each(aggregationObjects || [], (aggregationObject) => {
+
+    _.each(_aggregationObjects || [], (aggregationObject) => {
       assertAggregationObjectHasRequiredOptions(aggregationObject);
       let isDeepAggregation = false;
-      if (aggregationObject.type == 'terms') {
-        isDeepAggregation = addInDefaultAggregationQuery(aggs, aggregationObject, { size: aggregationObject.limit || DEFAULT_AGGREGATION_LIMIT });
-      } else if (aggregationObject.type == 'top_hits') {
+      if (aggregationObject.type === 'terms') {
+        isDeepAggregation = addInDefaultAggregationQuery(aggs, aggregationObject, {
+          size: aggregationObject.limit || DEFAULT_AGGREGATION_LIMIT
+        });
+      } else if (aggregationObject.type === 'top_hits') {
         const shallowAggs = {
           top_hits: {
             size: aggregationObject.limit ? Number(aggregationObject.limit) : DEFAULT_TOP_HITS_AGGREGATION_LIMIT
           }
         };
+
         // Adds in sorting
         if (aggregationObject.sort) {
           _.each(aggregationObject.sort.split(','), (sortParam) => {
-            const sortDirection = (sortParam[0] != '-' ? 'asc' : 'desc');
-            sortDirection == 'desc' && (sortParam = sortParam.substr(1));
+            const sortDirection = (sortParam[0] !== '-' ? 'asc' : 'desc');
+            const _sortParam = (sortDirection === 'desc') ? sortParam.substr(1) : sortParam;
             shallowAggs.top_hits.sort = shallowAggs.top_hits.sort || [];
             const sortTerm = {};
-            const lastDot = sortParam.lastIndexOf('.');
+            const lastDot = _sortParam.lastIndexOf('.');
+            const sortField = _sortParam;
             if (lastDot !== -1) {
-              var sortField = sortParam;
-              const nestedPath = sortParam.substring(0, lastDot);
+              const nestedPath = _sortParam.substring(0, lastDot);
               sortTerm[sortField] = { order: sortDirection, nested_path: nestedPath, ignore_unmapped: true };
             } else {
-              var sortField = sortParam;
               sortTerm[sortField] = { order: sortDirection, ignore_unmapped: true };
             }
-
             shallowAggs.top_hits.sort.push(sortTerm);
           });
         }
@@ -936,17 +983,19 @@ ElasticHarvest.prototype.getEsQueryBody = function (predicates, nestedPredicates
           shallowAggs.top_hits._source.include = aggregationObject.fields.split(',');
         }
         aggs[aggregationObject.name] = shallowAggs;
-      } else if (aggregationObject.type == 'extended_stats' && aggregationObject.sigma) {
-        isDeepAggregation = addInDefaultAggregationQuery(aggs, aggregationObject, { sigma: parseFloat(aggregationObject.sigma) });
-      } else if (aggregationObject.type == 'stats' || aggregationObject.type == 'extended_stats') {
+      } else if (aggregationObject.type === 'extended_stats' && aggregationObject.sigma) {
+        isDeepAggregation = addInDefaultAggregationQuery(aggs, aggregationObject, {
+          sigma: parseFloat(aggregationObject.sigma)
+        });
+      } else if (aggregationObject.type === 'stats' || aggregationObject.type === 'extended_stats') {
         isDeepAggregation = addInDefaultAggregationQuery(aggs, aggregationObject);
-      } else if (aggregationObject.type == 'date_histogram') {
+      } else if (aggregationObject.type === 'date_histogram') {
         const extraOptions = { interval: aggregationObject.interval };
         aggregationObject.timezone && (extraOptions.time_zone = aggregationObject.timezone);
         extraOptions.min_doc_count = 1;
         aggregationObject.offset && (extraOptions.offset = aggregationObject.offset);
         isDeepAggregation = addInDefaultAggregationQuery(aggs, aggregationObject, extraOptions);
-      } else if (aggregationObject.type == 'range') {
+      } else if (aggregationObject.type === 'range') {
         const ranges = aggregationObject.ranges.split(',');
         const rangeOptions = { ranges: [] };
         _.each(ranges, (range) => {
@@ -954,17 +1003,19 @@ ElasticHarvest.prototype.getEsQueryBody = function (predicates, nestedPredicates
           const rangeObject = {};
           const dashLocation = range.indexOf('-');
           // validates that this dashLocation is appropriate
-          if (dashLocation == 0) {
-            throw new Error(`The range aggregation requires that your ${range} range have a 'from' value. To remove the lower limit, use an * as your 'from' value. e.g. *-44`);
-          } else if (dashLocation == range.length - 1) {
-            throw new Error(`The range aggregation requires that your ${range} range have a 'to' value. To remove the upper limit, use an * as your 'to' value. e.g. 0-*`);
-          } else if (dashLocation == -1) {
+          if (dashLocation === 0) {
+            throw new Error(`The range aggregation requires that your ${range} range have a "from" value. To remove ` +
+            'the lower limit, use an * as your "from" value. e.g. *-44');
+          } else if (dashLocation === range.length - 1) {
+            throw new Error(`The range aggregation requires that your ${range} range have a 'to' value. To remove ` +
+            'the upper limit, use an * as your "to" value. e.g. 0-*');
+          } else if (dashLocation === -1) {
             throw new Error(`The range aggregation requires that your ${range} range have a '-' in it. e.g. 0-50`);
           }
           rangeObject.from = range.substring(0, dashLocation);
           rangeObject.to = range.substring(dashLocation + 1, range.length);
-          (rangeObject.from == '*') && (delete rangeObject.from);
-          (rangeObject.to == '*') && (delete rangeObject.to);
+          (rangeObject.from === '*') && (delete rangeObject.from);
+          (rangeObject.to === '*') && (delete rangeObject.to);
 
           rangeOptions.ranges.push(rangeObject);
         });
@@ -975,12 +1026,12 @@ ElasticHarvest.prototype.getEsQueryBody = function (predicates, nestedPredicates
       if (aggregationObject.aggregations) {
         const furtherAggs = getAggregationQuery(aggregationObject.aggregations);
         let relevantAggQueryObj = aggs[aggregationObject.name];
+
         if (isDeepAggregation) {
           // TODO:this should not be an equals; you may overwrite an agg here!
           aggs[aggregationObject.name].aggs[aggregationObject.name].aggs = { reverse_nesting: { reverse_nested: {} } };
           relevantAggQueryObj = aggs[aggregationObject.name].aggs[aggregationObject.name].aggs.reverse_nesting;
         }
-
         if (!relevantAggQueryObj.aggs) {
           relevantAggQueryObj.aggs = furtherAggs;
         } else {
@@ -990,6 +1041,7 @@ ElasticHarvest.prototype.getEsQueryBody = function (predicates, nestedPredicates
         }
       }
     });
+
     return aggs;
   }
 
@@ -1000,14 +1052,13 @@ ElasticHarvest.prototype.getEsQueryBody = function (predicates, nestedPredicates
 
     if (distanceFunction) {
       composedESQuery.script_fields = composedESQuery.script_fields || {};
-      composedESQuery.script_fields.distance =
-            {
-              params: {
-                lat: Number(geoPredicate.lat),
-                lon: Number(geoPredicate.lon)
-              },
-              script: `doc[\u0027location\u0027].${distanceFunction}(lat,lon)`
-            };
+      composedESQuery.script_fields.distance = {
+        params: {
+          lat: Number(geoPredicate.lat),
+          lon: Number(geoPredicate.lon)
+        },
+        script: `doc[\u0027location\u0027].${distanceFunction}(lat,lon)`
+      };
       composedESQuery.fields = ['_source'];
     }
   }
@@ -1016,61 +1067,63 @@ ElasticHarvest.prototype.getEsQueryBody = function (predicates, nestedPredicates
     composedESQuery.sort = [];
     _.each(sortParams, (sortParam) => {
       const sortTerm = {};
-      const sortDirection = (sortParam[0] != '-' ? 'asc' : 'desc');
-      sortDirection == 'desc' && (sortParam = sortParam.substr(1));
+      const sortDirection = (sortParam[0] !== '-' ? 'asc' : 'desc');
+      const _sortParam = (sortDirection === 'desc') ? sortParam.substr(1) : sortParam;
 
-      if (Util.hasDotNesting(sortParam)) {
+      if (Util.hasDotNesting(_sortParam)) {
         // nested sort
-        sortTerm[sortParam] = { order: sortDirection, ignore_unmapped: true, nested_path: sortParam.substring(0, sortParam.lastIndexOf('.')) };
-      } else if (sortParam == 'distance') {
+        sortTerm[_sortParam] = { order: sortDirection, ignore_unmapped: true, nested_path: _sortParam.substring(0,
+          _sortParam.lastIndexOf('.')) };
+      } else if (_sortParam === 'distance') {
         if (geoPredicateExists) {
-          sortTerm._geo_distance =
-                    {
-                      location: [Number(geoPredicate.lon), Number(geoPredicate.lat)],
-                      order: sortDirection,
-                      unit: geoPredicate.unit.toLowerCase(),
-                      mode: 'min',
-                      distance_type: 'sloppy_arc'
-                    };
+          sortTerm._geo_distance = {
+            location: [Number(geoPredicate.lon), Number(geoPredicate.lat)],
+            order: sortDirection,
+            unit: geoPredicate.unit.toLowerCase(),
+            mode: 'min',
+            distance_type: 'sloppy_arc'
+          };
         }
       } else {
-        // normal, simple sort
-        sortTerm[sortParam] = { order: sortDirection, ignore_unmapped: true };
+        sortTerm[_sortParam] = { order: sortDirection, ignore_unmapped: true }; // normal, simple sort
       }
       composedESQuery.sort.push(sortTerm);
     });
   }
 
-  const composedEsQuerystr = JSON.stringify(composedESQuery);
-  return composedEsQuerystr;
+  return JSON.stringify(composedESQuery);
 };
 
 
-ElasticHarvest.prototype.enableAutoIndexUpdate = function () {
+ElasticHarvest.prototype.enableAutoIndexUpdate = function enableAutoIndexUpdate() {
   const _this = this;
   _.each(this.autoUpdateInput, (autoUpdateValue, autoUpdateKey) => {
     _this.enableAutoIndexUpdateOnModelUpdate(autoUpdateValue, autoUpdateKey);
   });
 };
 
-ElasticHarvest.prototype.enableAutoIndexUpdateOnModelUpdate = function (endpoint, idField) {
+
+ElasticHarvest.prototype.enableAutoIndexUpdateOnModelUpdate = function enableAutoIndexUpdateOnModelUpdate(
+  endpoint, idField) {
   const _this = this;
+
+  function resourceChanged(resourceId) {
+    console.log(`[Elastic-Harvest] Syncing Change @${idField} : ${resourceId}`);
+
+    return _this.updateIndexForLinkedDocument(idField, { id: resourceId.toString() })
+      .catch((error) => {
+        // This sort of error will not be solved by retrying it a bunch of times.
+        console.warn(error && error.stack || error);
+      });
+  }
+
   if (!!this.harvest_app.options.oplogConnectionString) {
     console.warn(`[Elastic-Harvest] Will sync ${endpoint} data via oplog`);
-    this.harvest_app.onChange(endpoint, { insert: resourceChanged, update: resourceChanged, delete: resourceChanged, asyncInMemory: _this.options.asyncInMemory });
-
-    function resourceChanged(resourceId) {
-      console.log(`[Elastic-Harvest] Syncing Change @${idField} : ${resourceId}`);
-
-      return _this.updateIndexForLinkedDocument(idField, { id: resourceId.toString() })
-        .catch((error) => {
-          // This sort of error will not be solved by retrying it a bunch of times.
-          console.warn(error && error.stack || error);
-        });
-    }
+    this.harvest_app.onChange(endpoint, { insert: resourceChanged, update: resourceChanged, delete: resourceChanged,
+      asyncInMemory: _this.options.asyncInMemory });
   } else {
     console.warn(`[Elastic-Harvest] Will sync  ${endpoint} data via harvest.after`);
-    this.harvest_app.after(endpoint, function (req, res, next) {
+    this.harvest_app.after(endpoint, function handler(req) {
       const entity = this;
       if ((_.contains(['POST', 'PUT'], req.method)) && entity.id) {
         return _this.updateIndexForLinkedDocument(idField, entity);
@@ -1080,26 +1133,34 @@ ElasticHarvest.prototype.enableAutoIndexUpdateOnModelUpdate = function (endpoint
   }
 };
 
-// /Searches elastic search at idField for entity.id & triggers a reindex. If method is DELETE, it'll
-// handle the update specially, otherwise, you can ignore that param. Note that the delete param expects
-// that the idField ends in .id.
-ElasticHarvest.prototype.updateIndexForLinkedDocument = function (idField, entity, method) {
+
+/**
+ * Searches elastic search at idField for entity.id & triggers a reindex. If method is DELETE, it'll
+ * handle the update specially, otherwise, you can ignore that param. Note that the delete param expects
+ * that the idField ends in .id.
+ */
+ElasticHarvest.prototype.updateIndexForLinkedDocument = function updateIndexForLinkedDocument(idField, entity) {
   const _this = this;
+
   return _this.simpleSearch(idField, entity.id)
     .then((result) => {
       return _this.expandAndSync(_.map(result.hits.hits, (hit) => {
         return unexpandEntity(hit._source);
-      })).then((result) => {
+      })).then(() => {
         return entity;
       });
     });
 };
 
-// Takes a search predicate (or nested predicate) field & value and returns a promise for corresponding models.
-ElasticHarvest.prototype.simpleSearch = function (field, value) {
+
+/**
+ * Takes a search predicate (or nested predicate) field & value and returns a promise for corresponding models.
+ */
+ElasticHarvest.prototype.simpleSearch = function simpleSearch(field, value) {
   const predicates = [];
   const nestedPredicates = [];
-  if (field.indexOf('.') == -1) {
+
+  if (field.indexOf('.') === -1) {
     const predicate = {};
     predicate[field] = value;
     predicates.push(predicate);
@@ -1108,29 +1169,33 @@ ElasticHarvest.prototype.simpleSearch = function (field, value) {
     nestedPredicates.push(nestedPredicate);
   }
   const reqBody = this.getEsQueryBody(predicates, nestedPredicates, {}, [], undefined);
-  const _this = this;
   const params = [];
   params.push(`size=${DEFAULT_SIMPLE_SEARCH_LIMIT}`);
   const queryStr = `?${params.join('&')}`;
-  const es_resource = `${this.es_url}/${this.index}/${this.type}/_search${queryStr}`;
-  return requestAsync({ uri: es_resource, method: 'GET', body: reqBody }).then((response) => {
-    const es_results = JSON.parse(response[1]);
-    if (es_results.error) {
-      console.log('[Elastic-Harvest] Error', es_results.error);
-      throw new Error("Your query was malformed, so it failed. Please check the api to make sure you're using it correctly.");
+  const esResource = `${this.es_url}/${this.index}/${this.type}/_search${queryStr}`;
+
+  return requestAsync({ uri: esResource, method: 'GET', body: reqBody }).then((response) => {
+    const esResults = JSON.parse(response[1]);
+    if (esResults.error) {
+      console.log('[Elastic-Harvest] Error', esResults.error);
+      throw new Error('Your query was malformed, so it failed. Please check the api to make sure you\'re using it ' +
+        'correctly.');
     } else {
-      return es_results;
+      return esResults;
     }
   });
 };
 
-/** Delete Related **/
-// delete: Just deletes the #id item of the initialized type.
-ElasticHarvest.prototype.delete = function (id) {
+
+/**
+ * delete: Just deletes the #id item of the initialized type.
+ */
+ElasticHarvest.prototype.delete = function _delete(id) {
   const _this = this;
-  const es_resource = `${this.es_url}/${this.index}/${this.type}/${id}`;
+  const esResource = `${this.es_url}/${this.index}/${this.type}/${id}`;
   console.log(`[Elastic-Harvest] Deleting ${_this.type}/${id}`);
-  return requestAsync({ uri: es_resource, method: 'DELETE', body: '' }).then((response) => {
+
+  return requestAsync({ uri: esResource, method: 'DELETE', body: '' }).then((response) => {
     const body = JSON.parse(response[1]);
     if (!body.found) {
       throw new Error(`Could not find ${_this.type} ${id} to delete him from elastic search.`);
@@ -1140,41 +1205,48 @@ ElasticHarvest.prototype.delete = function (id) {
 };
 
 
-/** POST RELATED **/
-// Note - only 1 "after" callback is allowed per endpoint, so if you enable autosync w/o oplog integration, you're giving it up to elastic-harvest.
-ElasticHarvest.prototype.enableAutoSync = function () {
+/**
+ * Note - only 1 "after" callback is allowed per endpoint, so if you enable autosync w/o oplog integration, you're
+ * giving it up to elastic-harvest.
+ */
+ElasticHarvest.prototype.enableAutoSync = function enableAutoSync() {
   const endpoint = inflect.singularize(this.type);
   const _this = this;
+
+  function resourceDeleted(resourceId) {
+    _this.delete(resourceId)
+      .catch((error) => {
+        // This sort of error will not be solved by retrying it a bunch of times.
+        console.warn(error && error.stack || error);
+      });
+  }
+
+  function resourceChanged(resourceId) {
+    console.log(`[Elastic-Harvest] Syncing ${_this.type}/${resourceId}`);
+    return _this.harvest_app.adapter.find(endpoint, resourceId.toString())
+      .then((resource) => {
+        if (!resource) {
+          throw new Error(`[Elastic-Harvest] Missing ${_this.type}/${resourceId}. Cannot sync with elastic-harvest.`);
+        }
+        return _this.expandAndSync(resource);
+      })
+      .catch((error) => {
+      // This sort of error will not be solved by retrying it a bunch of times.
+        console.warn(error && error.stack || error);
+      });
+  }
+
   if (!!this.harvest_app.options.oplogConnectionString) {
     console.warn('[Elastic-Harvest] Will sync primary resource data via oplog');
-    this.harvest_app.onChange(endpoint, { insert: resourceChanged, update: resourceChanged, delete: resourceDeleted, asyncInMemory: _this.options.asyncInMemory });
-    function resourceDeleted(resourceId) {
-      _this.delete(resourceId)
-        .catch((error) => {
-          // This sort of error will not be solved by retrying it a bunch of times.
-          console.warn(error && error.stack || error);
-        });
-    }
-
-    function resourceChanged(resourceId) {
-      console.log(`[Elastic-Harvest] Syncing ${_this.type}/${resourceId}`);
-      return _this.harvest_app.adapter.find(endpoint, resourceId.toString())
-        .then((resource) => {
-          if (!resource) {
-            throw new Error(`[Elastic-Harvest] Missing ${_this.type}/${resourceId}. Cannot sync with elastic-harvest.`);
-          }
-          return _this.expandAndSync(resource);
-        })
-        .catch((error) => {
-          // This sort of error will not be solved by retrying it a bunch of times.
-          console.warn(error && error.stack || error);
-        });
-    }
+    this.harvest_app.onChange(endpoint, {
+      insert: resourceChanged,
+      update: resourceChanged,
+      delete: resourceDeleted,
+      asyncInMemory: _this.options.asyncInMemory
+    });
   } else {
     console.warn('[Elastic-Harvest] Will sync primary resource data via harvest:after');
-
-    this.harvest_app.after(endpoint, function (req, res, next) {
-      const deletedResource = this;
+    this.harvest_app.after(endpoint, function handler(req) {
       if (req.method === 'POST' || (req.method === 'PUT' && this.id)) {
         console.log(`[Elastic-Harvest] Syncing ${_this.type}/${this.id}`);
         return _this.expandAndSync(this)
@@ -1183,25 +1255,24 @@ ElasticHarvest.prototype.enableAutoSync = function () {
           });
       } else if (req.method === 'DELETE') {
         return this;
-
-        return _this.delete(this.id)
-          .then(() => {
-            return deletedResource;
-          });
       }
       return this;
     });
   }
 };
 
-// expandAndSync: will expand all links in the model, then push it to elastic search.
-// Works with one model or an array of models.
-// Todo: move to batch update model for multiples models.
-ElasticHarvest.prototype.expandAndSync = function (models) {
+
+/**
+ * expandAndSync: will expand all links in the model, then push it to elastic search.
+ * Works with one model or an array of models.
+ *
+ * Todo: move to batch update model for multiples models.
+ */
+ElasticHarvest.prototype.expandAndSync = function expandAndSync(models) {
   const inputIsArray = _.isArray(models);
-  models = [].concat(models);
+  const _models = [].concat(models);
   const _this = this;
-  const promises = _.map(models, (model) => {
+  const promises = _.map(_models, (model) => {
     return _this.expandEntity(model).then((result) => {
       return _this.sync(result);
     });
@@ -1209,56 +1280,71 @@ ElasticHarvest.prototype.expandAndSync = function (models) {
   return inputIsArray ? Promise.all(promises) : promises[0];
 };
 
-// sync: will push model to elastic search WITHOUT expanding any links.
-ElasticHarvest.prototype.sync = function (model) {
-  model = _.cloneDeep(model);
-  model._lastUpdated = new Date().getTime();
-  const esBody = JSON.stringify(model);
+
+/**
+ * sync: will push model to elastic search WITHOUT expanding any links.
+ */
+ElasticHarvest.prototype.sync = function sync(model) {
+  const _model = _.cloneDeep(model);
+  _model._lastUpdated = new Date().getTime();
+  const esBody = JSON.stringify(_model);
   const _this = this;
   const routing = getRouting(_this);
-  const options = { uri: `${this.es_url}/${this.index}/${this.type}/${model.id}${routing}`, body: esBody, pool: postPool };
+  const _options = {
+    uri: `${this.es_url}/${this.index}/${this.type}/${_model.id}${routing}`,
+    body: esBody,
+    pool: postPool
+  };
 
   function getRouting(options) {
     if (!options.pathToCustomRoutingKey) return ''; // custom routing not enabled
-    const value = Util.getProperty(model, options.pathToCustomRoutingKey);
+    const value = Util.getProperty(_model, options.pathToCustomRoutingKey);
     if (value) {
       return `?routing=${value}`;
     }
-    console.error('Routing Key required, but not available:', _this.type, options.pathToCustomRoutingKey, JSON.stringify(model, null, 2));
+    console.error('Routing Key required, but not available:', _this.type, options.pathToCustomRoutingKey,
+      JSON.stringify(_model, null, 2));
     return '';
   }
 
   return new Promise((resolve, reject) => {
-    request.put(options, (error, response, body) => {
-      body = JSON.parse(body);
-      if (error || body.error) {
-        const errMsg = error ? error.message ? error.message : JSON.stringify(error) : JSON.stringify(body.error);
-        console.warn(`[Elastic-Harvest] es_sync failed on model ${model.id} :`, errMsg);
-        reject(error || body);
+    request.put(_options, (error, response, body) => {
+      const _body = JSON.parse(body);
+      const _error = error || _body.error;
+
+      if (_error) {
+        const errMsg = error.message || JSON.stringify(error);
+        console.warn(`[Elastic-Harvest] es_sync failed on model ${_model.id} :`, errMsg);
+        reject(_error);
       } else {
-        resolve(model);
+        resolve(_model);
       }
     });
   })
-    .catch((error) => {
-      throw new Error(`${_this.type} ${model.id ? model.id : ''} was unable to be added to the elastic search index. This likely means that one or more links were unable to be found.`);
+    .catch(() => {
+      throw new Error(`${_this.type} ${_model.id ? _model.id : ''} was unable to be added to the elastic search ` +
+        'index. This likely means that one or more links were unable to be found.');
     });
 };
 
-function depthIsInScope(options, depth, currentPath) {
-  if (depth > options.graphDepth.default) {return false;}
-  return true;
+
+function depthIsInScope(options, depth) {
+  return !(depth > options.graphDepth.default);
 }
 
-ElasticHarvest.prototype.expandEntity = function (entity, depth, currentPath) {
-  function expandWithResult(entity, key, result) {
+
+ElasticHarvest.prototype.expandEntity = function expandEntity(entity, depth, currentPath) {
+  const promises = {};
+  const _this = this;
+
+  function expandWithResult(_entity, _key, result) {
     if (depth > 0) {
       _.forIn(result, (value, key) => {
         if (value === '') delete result[key];
       });
-      entity[key] = result;
+      _entity[_key] = result;
     } else {
-      entity.links[key] = result;
+      _entity.links[_key] = result;
     }
   }
 
@@ -1274,23 +1360,16 @@ ElasticHarvest.prototype.expandEntity = function (entity, depth, currentPath) {
       }, (err) => {
         const errorMessage = err || (`${val} could not be found in ${collectionName}`);
         // TODO: finish support for deletes. Maybe this comes back as an error & rejects the update.
-        //                if(depth>0){
-        //                    delete entity[key];
-        //                }else{
-        //                    delete entity.links[key];
-        //                }
         console.warn(errorMessage && errorMessage.stack || errorMessage);
         throw new Error(errorMessage);
       });
   }
 
-  if (!depthIsInScope(this.options, depth, currentPath)) {
-    return;
+  if (!depthIsInScope(this.options, depth, currentPath) || entity === undefined) {
+    return Promise.resolve();
   }
-  if (entity == undefined) {return;}
-  !depth && (depth = 0);
-  var promises = {};
-  var _this = this;
+  const _depth = (!depth) ? 0 : depth;
+
   // The first step to expand an entity is to get the objects it's linked to.
   _.each(entity.links || {}, (val, key) => {
     const collectionName = _this.collectionLookup[key];
@@ -1309,47 +1388,52 @@ ElasticHarvest.prototype.expandEntity = function (entity, depth, currentPath) {
   }, this);
 
   // The only "links" parameter at the end of the expansion should be on the original entity;
-  if (depth > 0) {
+  if (_depth > 0) {
     delete entity.links;
   }
 
   // To handle "links" of those freshly found objects, a bit of recursion.
-  return Promise.props(promises).then((results) => {
-    const furtherRequiredExpansions = {};
-    const newDepth = depth + 1;
-    _.each(results || {}, (val, key, list) => {
-      if (val && val.links) {
-        furtherRequiredExpansions[key] = _this.expandEntity(val, newDepth);
-      } else if (val && _.isArray(val)) {
-        // ToDo: a further optimization might be to group all similar requests across array elements & fire them off as 1 request.
-        _.each(val, (value) => {
-          if (value.links) {
-            !furtherRequiredExpansions[key] && (furtherRequiredExpansions[key] = []);
-            furtherRequiredExpansions[key].push(_this.expandEntity(value, newDepth));
-          }
-        });
+  return Promise.props(promises)
+    .then((results) => {
+      const furtherRequiredExpansions = {};
+      const newDepth = _depth + 1;
 
-        if (furtherRequiredExpansions[key]) {
-          furtherRequiredExpansions[key] = Promise.all(furtherRequiredExpansions[key]);
-        }
-      }
-    });
-    // Patch the results of recursion (to "depth+1" level) into the "depth" level entity
-    return Promise.props(furtherRequiredExpansions).then((response) => {
-      _.each(response || {}, (val, key, list) => {
-        if (depth > 0) {
-          entity[key] = val;
-        } else {
-          entity.links[key] = val;
+      _.each(results || {}, (val, key) => {
+        if (val && val.links) {
+          furtherRequiredExpansions[key] = _this.expandEntity(val, newDepth);
+        } else if (val && _.isArray(val)) {
+        // ToDo: a further optimization might be to group all similar requests across array elements & fire them off as
+        //       1 request.
+          _.each(val, (value) => {
+            if (value.links) {
+              !furtherRequiredExpansions[key] && (furtherRequiredExpansions[key] = []);
+              furtherRequiredExpansions[key].push(_this.expandEntity(value, newDepth));
+            }
+          });
+
+          if (furtherRequiredExpansions[key]) {
+            furtherRequiredExpansions[key] = Promise.all(furtherRequiredExpansions[key]);
+          }
         }
       });
-      return entity;
+
+      // Patch the results of recursion (to "depth+1" level) into the "depth" level entity
+      return Promise.props(furtherRequiredExpansions)
+        .then((response) => {
+          _.each(response || {}, (val, key) => {
+            if (_depth > 0) {
+              entity[key] = val;
+            } else {
+              entity.links[key] = val;
+            }
+          });
+          return entity;
+        });
     });
-  });
 };
 
 
-ElasticHarvest.prototype.initializeIndex = function () {
+ElasticHarvest.prototype.initializeIndex = function initializeIndex() {
   const url = `${this.es_url}/${this.index}`;
   console.log('[Elastic-Harvest] Initializing es index.');
   return requestAsync({ uri: url, method: 'PUT', body: '' }).then((response) => {
@@ -1366,13 +1450,15 @@ ElasticHarvest.prototype.initializeIndex = function () {
   });
 };
 
-ElasticHarvest.prototype.deleteIndex = function () {
+
+ElasticHarvest.prototype.deleteIndex = function deleteIndex() {
   const url = `${this.es_url}/${this.index}`;
   console.log('[Elastic-Harvest] Deleting es index.');
   return requestAsync({ uri: url, method: 'DELETE', body: '' }).then((response) => {
     const body = JSON.parse(response[1]);
     if (body.error) {
-      if (_s.contains(body.error, 'IndexMissingException') || (body.error.type && body.error.type == 'index_not_found_exception')) {
+      if (_s.contains(body.error, 'IndexMissingException')
+        || (body.error.type && body.error.type === 'index_not_found_exception')) {
         console.warn('[Elastic-Harvest] Tried to delete the index, but it was already gone!');
         return body;
       }
@@ -1383,18 +1469,23 @@ ElasticHarvest.prototype.deleteIndex = function () {
   });
 };
 
-// Posts an elastic search mapping to the server.Idempotent, so feel free to do this when starting up your server,
-// but if you change the mapping in a way that elastic search can't apply a transform to the current index to get there,
-// you'll have to reload the entire search index with new data, because this will fail.
-ElasticHarvest.prototype.initializeMapping = function (mapping, shouldNotRetry) {
+
+/**
+ * Posts an elastic search mapping to the server.Idempotent, so feel free to do this when starting up your server,
+ * but if you change the mapping in a way that elastic search can't apply a transform to the current index to get there,
+ * you'll have to reload the entire search index with new data, because this will fail.
+ */
+ElasticHarvest.prototype.initializeMapping = function initializeMapping(mapping, shouldNotRetry) {
   const _this = this;
   const reqBody = JSON.stringify(mapping);
-  const es_resource = `${this.es_url}/${this.index}/${this.type}/_mapping`;
-  return requestAsync({ uri: es_resource, method: 'PUT', body: reqBody }).then((response) => {
+  const esResource = `${this.es_url}/${this.index}/${this.type}/_mapping`;
+  return requestAsync({ uri: esResource, method: 'PUT', body: reqBody }).then((response) => {
     const body = JSON.parse(response[1]);
     if (body.error) {
-      if (((body.error.type && body.error.type == 'index_not_found_exception') || _s.contains(body.error, 'IndexMissingException')) && !shouldNotRetry) {
-        console.warn("[Elastic-Harvest] Looks like we need to create an index - I'll handle that automatically for you & will retry adding the mapping afterward.");
+      if (((body.error.type && body.error.type === 'index_not_found_exception')
+          || _s.contains(body.error, 'IndexMissingException')) && !shouldNotRetry) {
+        console.warn('[Elastic-Harvest] Looks like we need to create an index - I\'ll handle that automatically for ' +
+          'you & will retry adding the mapping afterward.');
         return _this.initializeIndex().then(() => {return _this.initializeMapping(mapping, true);});
       }
       throw new Error(response[1]);
@@ -1405,9 +1496,9 @@ ElasticHarvest.prototype.initializeMapping = function (mapping, shouldNotRetry) 
 };
 
 
-function getCollectionLookup(harvest_app, type) {
+function getCollectionLookup(harvestApp, type) {
   const schemaName = inflect.singularize(type);
-  const startingSchema = harvest_app._schema[schemaName];
+  const _startingSchema = harvestApp._schema[schemaName];
   const retVal = {};
   const maxDepth = 20;
   let depth = 0;
@@ -1417,16 +1508,20 @@ function getCollectionLookup(harvest_app, type) {
   function getLinkedSchemas(startingSchema) {
     depth++;
     if (depth >= maxDepth) {
-      console.warn(`[Elastic-Harvest] Graph depth of ${depth} exceeds ${maxDepth}. Graph dive halted prematurely - please investigate.`);// harvest schema may have circular references.
+      console.warn(`[Elastic-Harvest] Graph depth of ${depth} exceeds ${maxDepth}. Graph dive halted prematurely - ` +
+        'please investigate.'); // harvest schema may have circular references.
       return;
     }
 
     function setValueAndGetLinkedSchemas(propertyName, propertyValue) {
       retVal[propertyName] = propertyValue;
-      !linkedSchemas[propertyName] && harvest_app._schema[propertyValue] && (linkedSchemas[propertyName] = true) && getLinkedSchemas(harvest_app._schema[propertyValue]);
+      !linkedSchemas[propertyName]
+        && harvestApp._schema[propertyValue]
+        && (linkedSchemas[propertyName] = true)
+        && getLinkedSchemas(harvestApp._schema[propertyValue]);
     }
     _.each(startingSchema, (property, propertyName) => {
-      if ([typeof property] != 'function') {
+      if (typeof property !== 'function') {
         if (_.isString(property)) {
           setValueAndGetLinkedSchemas(propertyName, property);
         } else if (_.isArray(property)) {
@@ -1442,18 +1537,20 @@ function getCollectionLookup(harvest_app, type) {
     });
   }
 
-  getLinkedSchemas(startingSchema);
+  getLinkedSchemas(_startingSchema);
   return retVal;
 }
 
-ElasticHarvest.prototype.syncIndex = function (resource, action, data) {
+
+ElasticHarvest.prototype.syncIndex = function syncIndex(resource, action, data) {
   if (resource === this.type) {
-    return syncRootDocument(this, action, data);
+    return _syncRootDocument(this, action, data);
   }
-  return syncNestedDocument(this, resource, data);
+  return _syncNestedDocument(this, resource, data);
 };
 
-function syncRootDocument(EH, action, data) {
+
+function _syncRootDocument(EH, action, data) {
   // if root and update or insert call expandAndSync directly
   // else root and delete call delete directly
   const isDelete = action.replace(/\w/, '').toUpperCase() === 'DELETE';
@@ -1461,23 +1558,25 @@ function syncRootDocument(EH, action, data) {
   return EH.expandAndSync.apply(EH, data);
 }
 
-function syncNestedDocument(EH, resource, data) {
-  // find the possible ES paths
-  // do a simple search for any
-  // sync all root docs
+
+function _syncNestedDocument(EH, resource, data) {
+  // find the possible ES paths, do a simple search for any & sync all root docs
   const singleResource = inflect.singularize(resource);
   const updatePromises = _.map(EH.invertedAutoUpdateInput[singleResource], (path) => {
     return EH.updateIndexForLinkedDocument(path, data);
   });
+
   return Promise.all(updatePromises);
 }
+
 
 function generateUpdateMap(autoUpdateInput) {
   const auto = {};
   _.forOwn(autoUpdateInput, (value, key) => {
-    if (!_.isArray(auto[value])) return auto[value] = [key];
+    if (!_.isArray(auto[value])) return (auto[value] = [key]);
     return auto[value].push(key);
   });
+
   return auto;
 }
 

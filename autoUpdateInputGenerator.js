@@ -1,3 +1,5 @@
+'use strict';
+
 const inflect = require('i')();
 const _ = require('lodash');
 const Promise = require('bluebird');
@@ -16,8 +18,10 @@ const runningAsScript = !module.parent;
  Generate elastic-search autoUpdateInput from a harvester app.
  Meant to be run @cmd line, but can also be required and used in code.
 
- #Usage: node autoIndexInputGenerator.js path-to-harvester-app primary-es-graph-resource(e.g. people) file-to-create.json
- NB: argv[3] (in this case, "file-to-create.json") is optional. If not specified, no file will be written to disk; instead the mapping will
+ #Usage: node autoIndexInputGenerator.js path-to-harvester-app primary-es-graph-resource(e.g. people)
+ file-to-create.json
+ NB: argv[3] (in this case, "file-to-create.json") is optional. If not specified, no file will be written to disk;
+ instead the mapping will
  be console.logged.
  */
 
@@ -26,17 +30,14 @@ function InputGenerator() {
 }
 
 
-InputGenerator.prototype.generateInput = function (harvest_app, pov, outputFile) {
+InputGenerator.prototype.generateInput = function generateInput(harvestApp, pov, outputFile) {
   const _this = this;
-  if (_.isString(harvest_app)) {
-    harvest_app = require(harvest_app)(options);
-  } else {
-    harvest_app = Promise.resolve(harvest_app);
-  }
-  return harvest_app
-    .catch() // harvest_app doesn't have to work perfectly; we just need its schemas.
-    .then((harvest_app) => {
-      return _this.make(harvest_app, pov);
+  const _harvesterApp = (_.isString(harvestApp)) ? require(harvestApp)(options) : Promise.resolve(harvestApp);
+
+  return _harvesterApp
+    .catch() // harvestApp doesn't have to work perfectly; we just need its schemas.
+    .then((harvesterApp) => {
+      return _this.make(harvesterApp, pov);
     })
     .then((mappingData) => {
       if (outputFile) {
@@ -55,33 +56,34 @@ InputGenerator.prototype.generateInput = function (harvest_app, pov, outputFile)
     });
 };
 
-InputGenerator.prototype.make = function (harvest_app, pov) {
+InputGenerator.prototype.make = function make(harvestApp, pov) {
   const schemaName = inflect.singularize(pov);
-  const startingSchema = harvest_app._schema[schemaName];
+  const _startingSchema = harvestApp._schema[schemaName];
 
   const maxDepth = 3;
-  const depth = 0;
+  const _depth = 0;
 
   const retVal = {};
 
-  const path = 'links';
+  const _path = 'links';
 
   function getNextLevelSchema(propertyName, propertyValue, path, depth) {
-    if (depth == maxDepth) {
+    if (depth === maxDepth) {
       return;
     }
     retVal[`${path}.id`] = propertyValue;
-    harvest_app._schema[propertyValue] && getLinkedSchemas(harvest_app._schema[propertyValue], path, depth);
+    harvestApp._schema[propertyValue] && getLinkedSchemas(harvestApp._schema[propertyValue], path, depth);
   }
 
   function getLinkedSchemas(startingSchema, path, depth) {
     let newPath;
     if (depth >= maxDepth) {
-      console.warn(`[Elastic-harvest] Graph depth of ${depth} exceeds ${maxDepth}. Graph dive halted prematurely - please investigate.`);// harvest schema may have circular references.
-      return;
+      console.warn(`[Elastic-harvest] Graph depth of ${depth} exceeds ${maxDepth}. Graph dive halted prematurely ` +
+      '- please investigate.'); // harvest schema may have circular references.
+      return '';
     }
 
-    depth++;
+    depth++; // eslint-disable-line no-param-reassign
     _.each(startingSchema, (propertyValue, propertyName) => {
       newPath = `${path}.${propertyName}`;
       if (typeof propertyValue !== 'function') {
@@ -101,7 +103,7 @@ InputGenerator.prototype.make = function (harvest_app, pov) {
     return path;
   }
 
-  getLinkedSchemas(startingSchema, path, depth);
+  getLinkedSchemas(_startingSchema, _path, _depth);
   return retVal;
 };
 
