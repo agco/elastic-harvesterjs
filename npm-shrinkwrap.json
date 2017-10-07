@@ -948,45 +948,6 @@
       "integrity": "sha1-0so00JObeFJ9nYTi4lsPJNaPliQ=",
       "dev": true
     },
-    "eslint-plugin-mocha": {
-      "version": "4.11.0",
-      "resolved": "https://registry.npmjs.org/eslint-plugin-mocha/-/eslint-plugin-mocha-4.11.0.tgz",
-      "integrity": "sha1-kRk6L1XiCl41l0BUoAidMBmO5Xg=",
-      "dev": true,
-      "requires": {
-        "ramda": "0.24.1"
-      }
-    },
-    "eslint-plugin-node": {
-      "version": "4.2.2",
-      "resolved": "https://registry.npmjs.org/eslint-plugin-node/-/eslint-plugin-node-4.2.2.tgz",
-      "integrity": "sha1-gpWcqa7Xn8vSi7GxiNBcrAT7M2M=",
-      "dev": true,
-      "requires": {
-        "ignore": "3.3.5",
-        "minimatch": "3.0.4",
-        "object-assign": "4.1.1",
-        "resolve": "1.1.7",
-        "semver": "5.3.0"
-      },
-      "dependencies": {
-        "minimatch": {
-          "version": "3.0.4",
-          "resolved": "https://registry.npmjs.org/minimatch/-/minimatch-3.0.4.tgz",
-          "integrity": "sha512-yJHVQEhyqPLUTgt9B83PXu6W3rx4MvvHvSUvToogpwoGDOUQ+yDrR0HRot+yOCdCO7u4hX3pWft6kWBBcqh0UA==",
-          "dev": true,
-          "requires": {
-            "brace-expansion": "1.1.8"
-          }
-        },
-        "semver": {
-          "version": "5.3.0",
-          "resolved": "https://registry.npmjs.org/semver/-/semver-5.3.0.tgz",
-          "integrity": "sha1-myzl094C0XxgEq0yaqa00M9U+U8=",
-          "dev": true
-        }
-      }
-    },
     "eslint-scope": {
       "version": "3.7.1",
       "resolved": "https://registry.npmjs.org/eslint-scope/-/eslint-scope-3.7.1.tgz",
@@ -3019,12 +2980,6 @@
       "version": "0.6.6",
       "resolved": "https://registry.npmjs.org/qs/-/qs-0.6.6.tgz",
       "integrity": "sha1-bgFQmP9RlouKPIGQAdXyyJvEsQc="
-    },
-    "ramda": {
-      "version": "0.24.1",
-      "resolved": "https://registry.npmjs.org/ramda/-/ramda-0.24.1.tgz",
-      "integrity": "sha1-w7d1UZfzW43DUCIoJixMkd22uFc=",
-      "dev": true
     },
     "range-parser": {
       "version": "1.0.0",
