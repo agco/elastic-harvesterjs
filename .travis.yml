@@ -2,7 +2,7 @@ language: node_js
 node_js:
   - '8.4'
 services:
-- elasticsearch
+  - elasticsearch
 before_script:
   - "elasticsearch -v"
   - mkdir testdb
