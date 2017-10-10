@@ -1,124 +1,125 @@
-var _ = require('lodash');
-var Joi = require('joi');
-var harvester = require('harvesterjs');
-var should = require('should');
-var Promise = require('bluebird');
+'use strict';
 
-var request = require('supertest');
-var seeder = require('./seeder.js');
-var config = require('./config.js');
+const _ = require('lodash');
+const Joi = require('joi');
+const harvester = require('harvesterjs');
+const should = require('should');
+const Promise = require('bluebird');
 
-describe('Syncing external links', function () {
+const request = require('supertest');
+const seeder = require('./seeder.js');
+const config = require('./config.js');
 
-    describe('when remote API is down', function () {
-        before(function () {
-            this.timeout(config.esIndexWaitTime + 1000);
-            var harvesterApp = this.harvesterApp;
-            return Promise.map(['equipment', 'warriors', 'people'], function (key) {
-                return seeder(harvesterApp).dropCollectionsAndSeed(key)
-            });
+describe('Syncing external links', () => {
+  describe('when remote API is down', () => {
+    before(function accessMochaThis() {
+      this.timeout(config.esIndexWaitTime + 1000);
+      const harvesterApp = this.harvesterApp;
+      return Promise.map(['equipment', 'warriors', 'people'], (key) => {
+        return seeder(harvesterApp).dropCollectionsAndSeed(key);
+      });
+    });
+
+    it('should allow searching on id from linked entity from remote API', (done) => {
+      request(config.baseUrl).get('/equipment/search?links.dealer.id=d767ffc1-0ab6-11e5-a3f4-470467a3b6a8')
+        .expect(200).end((err, res) => {
+          should.not.exist(err);
+          const body = JSON.parse(res.text);
+          body.equipment.length.should.equal(1);
+          body.equipment[0].links.should.have.property('dealer', 'd767ffc1-0ab6-11e5-a3f4-470467a3b6a8');
+          done();
         });
+    });
+    it('should allow searching on id from nested linked entity from remote API', (done) => {
+      request(config.baseUrl).get('/warriors/search?links.weapon.dealer.id=d767ffc1-0ab6-11e5-a3f4-470467a3b6a8')
+        .expect(200).end((err, res) => {
+          should.not.exist(err);
+          const body = JSON.parse(res.text);
+          body.warriors.length.should.equal(1);
+          body.warriors[0].links.should.have.property('weapon', 'b767ffc1-0ab6-11e5-a3f4-470467a3b6a8');
+          done();
+        });
+    });
+    it.skip('should allow including remote links', (done) => {
+      /**
+       * This test is skipped because impl responds with 400, and I don't think it's correct
+       */
+      request(config.baseUrl).get('/equipment/search?include=dealer' +
+        '&links.dealer.id=d767ffc1-0ab6-11e5-a3f4-470467a3b6a8')
+        .expect(200).end((err, res) => {
+          should.not.exist(err);
+          const body = JSON.parse(res.text);
+          body.equipment.length.should.equal(1);
+          body.equipment[0].links.should.have.property('dealer', 'd767ffc1-0ab6-11e5-a3f4-470467a3b6a8');
+          body.linked.should.have.property('dealers', [
+            { id: 'd767ffc1-0ab6-11e5-a3f4-470467a3b6a8', name: 'Dilear' }
+          ]);
+          done();
+        });
+    });
+  });
 
-        it('should allow searching on id from linked entity from remote API', function (done) {
-            request(config.baseUrl).get('/equipment/search?links.dealer.id=d767ffc1-0ab6-11e5-a3f4-470467a3b6a8')
-                .expect(200).end(function (err, res) {
-                    should.not.exist(err);
-                    var body = JSON.parse(res.text);
-                    body.equipment.length.should.equal(1);
-                    body.equipment[0].links.should.have.property('dealer', 'd767ffc1-0ab6-11e5-a3f4-470467a3b6a8');
-                    done();
-                });
-        });
-        it('should allow searching on id from nested linked entity from remote API', function (done) {
-            request(config.baseUrl).get('/warriors/search?links.weapon.dealer.id=d767ffc1-0ab6-11e5-a3f4-470467a3b6a8')
-                .expect(200).end(function (err, res) {
-                should.not.exist(err);
-                var body = JSON.parse(res.text);
-                body.warriors.length.should.equal(1);
-                body.warriors[0].links.should.have.property('weapon', 'b767ffc1-0ab6-11e5-a3f4-470467a3b6a8');
-                done();
-            });
-        });
-        it.skip('should allow including remote links', function (done) {
-            /**
-             * This test is skipped because impl responds with 400, and I don't think it's correct
-             */
-            request(config.baseUrl).get('/equipment/search?include=dealer&links.dealer.id=d767ffc1-0ab6-11e5-a3f4-470467a3b6a8')
-                .expect(200).end(function (err, res) {
-                    should.not.exist(err);
-                    var body = JSON.parse(res.text);
-                    body.equipment.length.should.equal(1);
-                    body.equipment[0].links.should.have.property('dealer', 'd767ffc1-0ab6-11e5-a3f4-470467a3b6a8');
-                    body.linked.should.have.property('dealers', [
-                        {id: 'd767ffc1-0ab6-11e5-a3f4-470467a3b6a8', name: 'Dilear'}
-                    ]);
-                    done();
-                });
+  describe('when remote API is up', () => {
+    before(function accessMochaThis() {
+      const mainHarvesterApp = this.harvesterApp;
+      this.timeout(config.esIndexWaitTime + 1000);
+      const options = _.cloneDeep(config.harvester.options);
+      options.db = 'ehTestDb2';
+      options.connectionString = `mongodb://127.0.0.1:27017/${options.db}`;
+      const harvesterApp2 = harvester(options);
+      const port = config.harvester.port + 1;
+      harvesterApp2.resource('dealer', {
+        name: Joi.string()
+      }).listen(port);
+      const seederInstance = seeder(harvesterApp2, `http://localhost:${port}`);
+      return seederInstance.dropCollections('dealers').then(() => {
+        return seederInstance.seedCustomFixture({ dealers: [
+          {
+            id: 'd767ffc1-0ab6-11e5-a3f4-470467a3b6a8',
+            name: 'Dilear'
+          }
+        ] });
+      }).then(() => {
+        return seeder(mainHarvesterApp).dropCollectionsAndSeed('equipment');
+      });
+    });
+
+    it('should allow searching on id from linked entity from remote API', (done) => {
+      request(config.baseUrl).get('/equipment/search?links.dealer.id=d767ffc1-0ab6-11e5-a3f4-470467a3b6a8')
+        .expect(200).end((err, res) => {
+          should.not.exist(err);
+          const body = JSON.parse(res.text);
+          body.equipment.length.should.equal(1);
+          body.equipment[0].links.should.have.property('dealer', 'd767ffc1-0ab6-11e5-a3f4-470467a3b6a8');
+          done();
         });
     });
 
-    describe('when remote API is up', function () {
-
-        before(function () {
-            var mainHarvesterApp = this.harvesterApp;
-            this.timeout(config.esIndexWaitTime + 1000);
-            var options = _.cloneDeep(config.harvester.options);
-            options.db = 'ehTestDb2';
-            options.connectionString = 'mongodb://127.0.0.1:27017/' + options.db;
-            var harvesterApp2 = harvester(options);
-            var port = config.harvester.port + 1;
-            harvesterApp2.resource('dealer', {
-                name: Joi.string()
-            }).listen(port);
-            var seederInstance = seeder(harvesterApp2, 'http://localhost:' + port);
-            return seederInstance.dropCollections('dealers').then(function () {
-                return seederInstance.seedCustomFixture({dealers: [
-                    {
-                        id: 'd767ffc1-0ab6-11e5-a3f4-470467a3b6a8',
-                        name: 'Dilear'
-                    }
-                ]})
-            }).then(function () {
-                    return seeder(mainHarvesterApp).dropCollectionsAndSeed('equipment');
-                });
-        });
-
-        it('should allow searching on id from linked entity from remote API', function (done) {
-            request(config.baseUrl).get('/equipment/search?links.dealer.id=d767ffc1-0ab6-11e5-a3f4-470467a3b6a8')
-                .expect(200).end(function (err, res) {
-                    should.not.exist(err);
-                    var body = JSON.parse(res.text);
-                    body.equipment.length.should.equal(1);
-                    body.equipment[0].links.should.have.property('dealer', 'd767ffc1-0ab6-11e5-a3f4-470467a3b6a8');
-                    done();
-                });
-        });
-
-        it('should allow searching on id from linked entity from remote API', function (done) {
-            request(config.baseUrl).get('/equipment/search?links.dealer.id=aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa')
-                .expect(200).end(function (err, res) {
-                    should.not.exist(err);
-                    var body = JSON.parse(res.text);
-                    body.equipment.length.should.equal(1);
-                    body.equipment[0].links.should.have.property('dealer', 'aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa');
-                    done();
-                });
-        });
-
-        it('should allow including remote links', function (done) {
-            request(config.baseUrl).get('/equipment/search?include=dealer&links.dealer.id=d767ffc1-0ab6-11e5-a3f4-470467a3b6a8')
-                .expect(200).end(function (err, res) {
-                    should.not.exist(err);
-                    var body = JSON.parse(res.text);
-                    body.equipment.length.should.equal(1);
-                    body.equipment[0].links.should.have.property('dealer', 'd767ffc1-0ab6-11e5-a3f4-470467a3b6a8');
-                    body.linked.should.have.property('dealers', [
-                        {id: 'd767ffc1-0ab6-11e5-a3f4-470467a3b6a8', name: 'Dilear'}
-                    ]);
-                    done();
-                });
+    it('should allow searching on id from linked entity from remote API', (done) => {
+      request(config.baseUrl).get('/equipment/search?links.dealer.id=aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa')
+        .expect(200).end((err, res) => {
+          should.not.exist(err);
+          const body = JSON.parse(res.text);
+          body.equipment.length.should.equal(1);
+          body.equipment[0].links.should.have.property('dealer', 'aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa');
+          done();
         });
     });
+
+    it('should allow including remote links', (done) => {
+      request(config.baseUrl).get('/equipment/search?include=dealer' +
+        '&links.dealer.id=d767ffc1-0ab6-11e5-a3f4-470467a3b6a8')
+        .expect(200).end((err, res) => {
+          should.not.exist(err);
+          const body = JSON.parse(res.text);
+          body.equipment.length.should.equal(1);
+          body.equipment[0].links.should.have.property('dealer', 'd767ffc1-0ab6-11e5-a3f4-470467a3b6a8');
+          body.linked.should.have.property('dealers', [
+            { id: 'd767ffc1-0ab6-11e5-a3f4-470467a3b6a8', name: 'Dilear' }
+          ]);
+          done();
+        });
+    });
+  });
 });
-
 

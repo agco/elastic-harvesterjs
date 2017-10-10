@@ -1,21 +1,21 @@
 'use strict';
 
-var harvesterApp = require('./app.js');
-var events = require('./events.js');
-var config = require('./config.js');
+const harvesterApp = require('./app.js');
+const events = require('./events.js');
+const config = require('./config.js');
 
-var esLatency = 1000;
-var Cache = require('../lib/singletonAdapterCache');
+const esLatency = 1000;
+const Cache = require('../lib/singletonAdapterCache');
 
-before(function () {
-    var _this = this;
-    this.timeout(config.esIndexWaitTime + 1000);
-    return harvesterApp.apply(this).then(function (harvesterInstance) {
-        _this.singletonCache = Cache.getInstance();
-        return events(harvesterInstance);
-    });
+before(function accessMochaThis() {
+  const _this = this;
+  this.timeout(config.esIndexWaitTime + esLatency);
+  return harvesterApp.apply(this).then((harvesterInstance) => {
+    _this.singletonCache = Cache.getInstance();
+    return events(harvesterInstance);
+  });
 });
 
-beforeEach(function () {
-    this.singletonCache.clear();  // clear the cache between tests
+beforeEach(function accessMochaThis() {
+  this.singletonCache.clear(); // clear the cache between tests
 });

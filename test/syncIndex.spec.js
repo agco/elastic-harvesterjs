@@ -1,63 +1,63 @@
-//dependencies
-var _ = require('lodash');
-var chai = require('chai');
-var expect = chai.expect;
-var $http = require('http-as-promised');
-var Promise = require('bluebird');
+'use strict';
 
-//locals
-var seeder = require('./seeder.js');
-var fixtures = require('./fixtures')();
+// dependencies
+const _ = require('lodash');
+const chai = require('chai');
+const expect = chai.expect;
+const $http = require('http-as-promised');
+const Promise = require('bluebird');
 
-describe('#syncIndex', function() {
-    var config;
-    beforeEach(function () {
-        config = this.config;
-        this.timeout(config.esIndexWaitTime + 10000);
-        return seeder(this.harvesterApp).dropCollectionsAndSeed('people', 'pets')
-            .then(linkPeopleWithPets);
+// locals
+const seeder = require('./seeder.js');
+const fixtures = require('./fixtures')();
 
-        function linkPeopleWithPets() {
-            var payload = {
-                    people: [
-                        {
-                            links: {
-                                pets: [fixtures.pets[0].id]
-                            }
-                        }
-                    ]
-                };
+describe('#syncIndex', () => {
+  let config;
+  beforeEach(function accessMochaThis() {
+    config = this.config;
+    this.timeout(config.esIndexWaitTime + 10000);
+    return seeder(this.harvesterApp).dropCollectionsAndSeed('people', 'pets')
+      .then(linkPeopleWithPets);
 
-            return $http.put(config.baseUrl + '/people/' + fixtures.people[0].id, {json: payload})
-                .spread(function(res) {
-                    expect(res.statusCode).to.equal(200);
-                    return Promise.delay(config.esIndexWaitTime);
-                });
-        }
-    });
+    function linkPeopleWithPets() {
+      const payload = {
+        people: [
+          {
+            links: {
+              pets: [fixtures.pets[0].id]
+            }
+          }
+        ]
+      };
 
-    it('has valid people data', function() {
-        return $http.get(config.baseUrl+'/people/search?include=pets', {json: true}).spread(function(res) {
-            expect(res.statusCode).to.equal(200);
+      return $http.put(`${config.baseUrl}/people/${fixtures.people[0].id}`, { json: payload })
+        .spread((res) => {
+          expect(res.statusCode).to.equal(200);
+          return Promise.delay(config.esIndexWaitTime);
         });
+    }
+  });
+
+  it('has valid people data', () => {
+    return $http.get(`${config.baseUrl}/people/search?include=pets`, { json: true }).spread((res) => {
+      expect(res.statusCode).to.equal(200);
     });
+  });
 
-    it('works!', function() {
-        var dog = fixtures['pets'][0];
+  it('works!', function accessMochaThis() {
+    const dog = fixtures.pets[0];
 
-        this.timeout(config.esIndexWaitTime + 10000);
-        dog.name = "dogebert";  // this assignment and the syncIndex below appear to have no affect on this test...
-        return this.peopleSearch.syncIndex('pets', 'update', dog)
-            .delay(config.esIndexWaitTime)
-            .then(function() {
-                return $http.get(config.baseUrl + '/people/search?include=pets', { json: true })
-            })
-            .spread(function (res, body) {
-                var personOfInterest;
-
-                expect(res.statusCode).to.equal(200);
-                personOfInterest = _.find(body.people, { name: 'Dilbert' });
-                expect(personOfInterest.links.pets[0]).to.equal(dog.id);
-            });
-    });
+    this.timeout(config.esIndexWaitTime + 10000);
+    dog.name = 'dogebert'; // this assignment and the syncIndex below appear to have no affect on this test...
+    return this.peopleSearch.syncIndex('pets', 'update', dog)
+      .delay(config.esIndexWaitTime)
+      .then(() => {
+        return $http.get(`${config.baseUrl}/people/search?include=pets`, { json: true });
+      })
+      .spread((res, body) => {
+        expect(res.statusCode).to.equal(200);
+        const personOfInterest = _.find(body.people, { name: 'Dilbert' });
+        expect(personOfInterest.links.pets[0]).to.equal(dog.id);
+      });
+  });
 });

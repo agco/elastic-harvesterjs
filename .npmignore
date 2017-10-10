@@ -1,0 +1,10 @@
+node_modules
+**/.vagrant/**
+.idea
+*.iml
+*.log
+.DS_Store
+*.stephen
+*.test-created.mapping.json
+*.test-created.input.json
+.eslintrc.json

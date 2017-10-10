@@ -1,24 +1,26 @@
-var _ = require('lodash');
-var fs = require('fs');
-var path = require('path');
+'use strict';
 
-function FixturesSync() {
-    var fixtureList = fs.readdirSync(path.join(__dirname, './')).filter(function (item) {
-        return 'index.js' !== item;
+const _ = require('lodash');
+const fs = require('fs');
+const path = require('path');
+
+function fixturesSync() {
+  const fixtureList = fs.readdirSync(path.join(__dirname, './')).filter((item) => {
+    return item !== 'index.js';
+  });
+  let fixtures;
+
+  if (!fixtures) {
+    fixtures = {};
+    _.forEach(fixtureList, (value) => {
+      fixtures[path.basename(value, '.js')] = require(`./${value}`);
     });
-    var fixtures;
-
-    if (!fixtures) {
-        fixtures = {};
-        _.forEach(fixtureList, function A(value) {
-            fixtures[path.basename(value, '.js')] = require('./' + value);
-        });
-    }
-    return fixtures;
+  }
+  return fixtures;
 }
 
-var standardFixture = FixturesSync();
+const standardFixture = fixturesSync();
 
-module.exports = function () {
-    return _.cloneDeep(standardFixture);
+module.exports = () => {
+  return _.cloneDeep(standardFixture);
 };
